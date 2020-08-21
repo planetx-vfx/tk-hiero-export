@@ -7,7 +7,8 @@
 # By accessing, using, copying or modifying this work you indicate your
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
-
+import sgtk
+from tank.util import shotgun
 from tank import Hook
 
 
@@ -33,7 +34,25 @@ class HieroResolveCustomStrings(Hook):
             associated string.
         :rtype: str
         """
-        shot_code = task._item.name()
+        if keyword == "{projectcode}":
+            # Getting shotgun credentials
+            sg = shotgun.get_sg_connection()
+
+            # Finding current project name
+            current_engine = sgtk.platform.current_engine()
+            current_context = current_engine.context
+            projectname_entity = current_context.project["name"]
+
+            # Searching for projectcode in entity's of project
+            def returnProjectId(projectname):
+            	for p in sg.find("Project",[["name", "is", projectname]], ["name","sg_projectcode"]):
+            		return p["sg_projectcode"]
+
+            # Executing function to find projectcode
+            projectcode_entity = returnProjectId(projectname_entity)
+
+            # Returning projectcode as a replacement of the keyword
+            return projectcode_entity
 
         # grab the shot from the cache, or the get_shot hook if not cached
         sg_shot = self._sg_lookup_cache.get(shot_code)
