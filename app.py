@@ -1,11 +1,11 @@
 # Copyright (c) 2013 Shotgun Software Inc.
-# 
+#
 # CONFIDENTIAL AND PROPRIETARY
-# 
-# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+#
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit
 # Source Code License included in this distribution package. See LICENSE.
-# By accessing, using, copying or modifying this work you indicate your 
-# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+# By accessing, using, copying or modifying this work you indicate your
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 """
@@ -27,6 +27,7 @@ import hiero.core
 import hiero.exporters
 
 from hiero.exporters import FnExternalRender
+from hiero.exporters import FnCopyExporter
 from hiero.exporters import FnNukeShotExporter
 
 # do not use tk import here, hiero needs the classes to be in their
@@ -57,7 +58,7 @@ sys.path.pop()
 HIERO_SUBSTITUTION_KEYWORDS = ["clip", "day", "DD", "event",
                                "ext", "filebase", "fileext", "filehead",
                                "filename", "filepadding", "fullbinpath", "fullday", "fullmonth",
-                               "MM", "month", "project", "projectroot", "sequence", "shot", 
+                               "MM", "month", "project", "projectroot", "sequence", "shot",
                                "tk_version", "track", "user", "version", "YY", "YYYY"]
 
 
@@ -156,7 +157,7 @@ class HieroExport(Application):
         self._old_AddDefaultPresets_fn(overwrite)
 
         # Add Shotgun template
-        name = "Basic Shotgun Shot"
+        name = "NFA Shotgun Shot"
         localpresets = [preset.name() for preset in hiero.core.taskRegistry.localPresets()]
 
         # only add the preset if it is not already there - or if a reset to defaults is requested.
@@ -165,6 +166,7 @@ class HieroExport(Application):
             plate_template = self.get_template("template_plate_path")
             script_template = self.get_template("template_nuke_script_path")
             render_template = self.get_template("template_render_path")
+            copy_template = self.get_template("template_copy_path")
 
             # call the hook to translate them into hiero paths, using hiero keywords
             plate_hiero_str = self.execute_hook("hook_translate_template", template=plate_template, output_type='plate')
@@ -176,10 +178,14 @@ class HieroExport(Application):
             render_hiero_str = self.execute_hook("hook_translate_template", template=render_template, output_type='render')
             self.log_debug("Translated %s --> %s" % (render_template, render_hiero_str))
 
+            copy_hiero_str = self.execute_hook("hook_translate_template", template=copy_template, output_type='copy')
+            self.log_debug("Translated %s --> %s" % (copy_template, copy_hiero_str))
+
             # check so that no unknown keywords exist in the templates after translation
             self._validate_hiero_export_template(plate_hiero_str)
             self._validate_hiero_export_template(script_hiero_str)
             self._validate_hiero_export_template(render_hiero_str)
+            self._validate_hiero_export_template(copy_hiero_str)
 
             # and set the default properties to be based off of those templates
 
@@ -187,18 +193,21 @@ class HieroExport(Application):
             file_type, file_options = self.execute_hook("hook_get_quicktime_settings", for_shotgun=False)
             properties = {
                 "exportTemplate": (
-                    (script_hiero_str, ShotgunNukeShotPreset("", {"readPaths": [], "writePaths": []})),
-                    (render_hiero_str, FnExternalRender.NukeRenderPreset("", {"file_type": "dpx", "dpx": {"datatype": "10 bit"}})),
+                    (script_hiero_str, ShotgunNukeShotPreset("", {"readPaths": [ "02_source/{sequence}/{shot}/p{tk_version}/plates/{fileext}/{projectcode}_sc{sequence}_sh{shot}_plate_p{tk_version}.####.{fileext}",], "writePaths": []})),
+                    (render_hiero_str, FnExternalRender.NukeRenderPreset("", {"file_type": "exr", "exr": {"datatype": "16 bit"}})),
                     (plate_hiero_str, ShotgunTranscodePreset("", {"file_type": file_type, file_type: file_options})),
+                    (copy_hiero_str, FnCopyExporter.CopyPreset("", {})),
                 )
             }
             preset = ShotgunShotProcessorPreset(name, properties)
             hiero.core.taskRegistry.removeProcessorPreset(name)
             hiero.core.taskRegistry.addProcessorPreset(name, preset)
 
+
+
     def _validate_hiero_export_template(self, template_str):
         """
-        Validate that a template_str only contains Hiero substitution keywords or custom 
+        Validate that a template_str only contains Hiero substitution keywords or custom
         keywords created via the resolve_custom_strings hook.
         """
         # build list of valid tokens
@@ -208,7 +217,7 @@ class HieroExport(Application):
         # replace all tokens we know about in the template
         for x in hiero_resolver_tokens:
             template_str = template_str.replace(x, "")
-        
+
         # find any remaining {xyz} tokens in the template
         regex = r"(?<={)[a-zA-Z_ 0-9]+(?=})"
         key_names = re.findall(regex, template_str)
@@ -218,4 +227,3 @@ class HieroExport(Application):
                             "or adjust the hook that converts a template to a hiero export "
                             "path to convert these fields into fixed strings or hiero "
                             "substitution tokens." % (template_str, ",".join(key_names) ) )
-
