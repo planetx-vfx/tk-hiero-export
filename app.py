@@ -262,6 +262,12 @@ class HieroExport(Application):
                             "", {"file_type": file_type, file_type: file_options}
                         ),
                     ),
+                    (
+                        copy_hiero_str,
+                        FnCopyExporter.CopyPreset(
+                            "", {}
+                        ),
+                    ),
                 )
             }
             preset = ShotgunShotProcessorPreset(name, properties)
