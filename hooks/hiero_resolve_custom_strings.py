@@ -17,6 +17,7 @@ class HieroResolveCustomStrings(Hook):
     This class implements a hook that is used to resolve custom tokens into
     their concrete value when paths are being processed during the export.
     """
+
     # Cache of shots that have already been pulled from shotgun
     _sg_lookup_cache = {}
 
@@ -57,7 +58,10 @@ class HieroResolveCustomStrings(Hook):
         # grab the shot from the cache, or the get_shot hook if not cached
         sg_shot = self._sg_lookup_cache.get(shot_code)
         if sg_shot is None:
-            fields = [ctf['keyword'] for ctf in self.parent.get_setting('custom_template_fields')]
+            fields = [
+                ctf["keyword"]
+                for ctf in self.parent.get_setting("custom_template_fields")
+            ]
             sg_shot = self.parent.execute_hook(
                 "hook_get_shot",
                 task=task,
@@ -76,6 +80,8 @@ class HieroResolveCustomStrings(Hook):
         keyword = keyword[1:-1]
         result = sg_shot.get(keyword, "")
 
-        self.parent.log_debug("Custom resolver: %s[%s] -> %s" % (shot_code, keyword, result))
+        self.parent.log_debug(
+            "Custom resolver: %s[%s] -> %s" % (shot_code, keyword, result)
+        )
 
         return result
