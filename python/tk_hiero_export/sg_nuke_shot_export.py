@@ -270,6 +270,8 @@ class ShotgunNukeShotExporter(
         """
         Add ShotgunWriteNodePlaceholder Metadata nodes for tk-nuke-writenode to
         create full Tk WriteNodes in the Nuke environment
+
+        Also add createTemplatePlaceholder nodes to activate the conversion progress to a custom template.
         """
         FnNukeShotExporter.NukeShotExporter._beforeNukeScriptWrite(self, script)
 
@@ -295,14 +297,22 @@ class ShotgunNukeShotExporter(
                 )
 
                 metadata = match.groupdict()
-                node = nuke.MetadataNode(metadatavalues=list(metadata.items()))
-                node.setName("ShotgunWriteNodePlaceholder")
+                shotGridWriteNode = nuke.MetadataNode(metadatavalues=list(metadata.items()))
+                shotGridWriteNode.setName("ShotgunWriteNodePlaceholder")
+
+                createTemplatePlaceholder = nuke.MetadataNode()
+                createTemplatePlaceholder.setName("createTemplatePlaceholder")
 
                 self.app.log_debug(
-                    "Created ShotgunWriteNodePlaceholder Node: %s" % node._knobValues
+                    "Created ShotgunWriteNodePlaceholder Node: %s" % shotGridWriteNode._knobValues
+                )
+
+                self.app.log_debug(
+                    "Created createTemplatePlaceholder Node: %s" % createTemplatePlaceholder._knobValues
                 )
                 # rather than using the script.addNode, we append our node directly to the nodeList
-                nodeList.append(node)
+                nodeList.append(shotGridWriteNode)
+                nodeList.append(createTemplatePlaceholder)
 
                 # now add our new node to the layout
                 currentLayoutContext.getNodes().append(node)
