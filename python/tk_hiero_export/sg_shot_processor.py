@@ -61,10 +61,10 @@ class ShotgunShotProcessorUI(
         CollatingExporterUI.__init__(self)
 
     def displayName(self):
-        return "Process as Shotgun Shots"
+        return "Process as ShotGrid Shots"
 
     def toolTip(self):
-        return "Process as Shotgun Shots generates output on a per-shot basis and logs it in Shotgun."
+        return "Process as ShotGrid Shots generates output on a per-shot basis and logs it in Shotgun."
 
     def populateUI(self, *args, **kwargs):
         """
@@ -85,7 +85,7 @@ class ShotgunShotProcessorUI(
 
         # add group box for shotgun stuff
         shotgun_groupbox = QtGui.QGroupBox(
-            "Shotgun Shot and Sequence Creation Settings"
+            "ShotGrid Shot and Sequence Creation Settings"
         )
         master_layout.addWidget(shotgun_groupbox)
         shotgun_layout = QtGui.QVBoxLayout(shotgun_groupbox)
@@ -95,13 +95,12 @@ class ShotgunShotProcessorUI(
         header_text.setWordWrap(True)
         header_text.setText(
             """
-            <big>Welcome to the Shotgun Shot Exporter!</big>
-            <p>When you are using the Shotgun Shot Processor, Shots and
-            Sequences in Shotgun will be created based on the curent timeline.
-            Existing Shots will be updated with the latest cut lengths.
-            Quicktimes for each shot will be reviewable in the Media app when
-            you use the special Shotgun Transcode plugin - all included and
-            ready to go in the default preset.
+            <big>Welcome to the Netherlands Filmacademy Shot Exporter! :)</big>
+            <p>If you wish to use a 3D task template, make sure to assign tags to the shots. Otherwise the
+            2D Shot template will be assigned.</p>
+            <p>During exporting
+            each shot will be automatically renamed, rendered to a quicktime for
+            preview in ShotGrid, and a Nuke file including the read node will be created.
             </p>
             """
         )

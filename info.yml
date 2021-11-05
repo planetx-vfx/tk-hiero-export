@@ -7,7 +7,7 @@ configuration:
                      creating new shots in Shotgun. This setting is presented
                      in the Custom Shotgun Export UI and you can change it
                      prior to running the export if you want.
-        default_value: Basic shot template
+        default_value: 2D Shot
 
     audio_published_file_type:
         type: tank_type
@@ -35,8 +35,9 @@ configuration:
         values:
             type: dict
             items:
-                channel: { type: str }
-                name: { type: str }
+                category: { type: str}
+                output: { type: str }
+                data_type: { type: str }
         description:
 
     custom_template_fields:
