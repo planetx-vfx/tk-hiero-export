@@ -248,12 +248,12 @@ class HieroExport(Application):
                 "exportTemplate": (
                     (
                         script_hiero_str,
-                        ShotgunNukeShotPreset("", {"readPaths": [], "writePaths": []}),
+                        ShotgunNukeShotPreset("", {"readPaths": [copy_hiero_str.replace(os.sep, "/")], "writePaths": []}),
                     ),
                     (
                         render_hiero_str,
                         FnExternalRender.NukeRenderPreset(
-                            "", {"file_type": "dpx", "dpx": {"datatype": "10 bit"}}
+                            "", {"file_type": "exr", "exr": {"datatype": "16 bit"}}
                         ),
                     ),
                     (
