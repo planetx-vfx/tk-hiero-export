@@ -35,7 +35,7 @@ class HieroResolveCustomStrings(Hook):
             associated string.
         :rtype: str
         """
-        if keyword == "{projectcode}":
+        if keyword == "{Projectcode}":
             # Getting shotgun credentials
             sg = shotgun.get_sg_connection()
 
