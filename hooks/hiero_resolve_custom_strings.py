@@ -35,6 +35,8 @@ class HieroResolveCustomStrings(Hook):
             associated string.
         :rtype: str
         """
+        shot_code = task._item.name()
+
         if keyword == "{Projectcode}":
             # Getting shotgun credentials
             sg = shotgun.get_sg_connection()
@@ -42,18 +44,15 @@ class HieroResolveCustomStrings(Hook):
             # Finding current project name
             current_engine = sgtk.platform.current_engine()
             current_context = current_engine.context
-            projectname_entity = current_context.project["name"]
+            projectname = current_context.project["name"]
 
-            # Searching for projectcode in entity's of project
-            def returnProjectId(projectname):
-            	for p in sg.find("Project",[["name", "is", projectname]], ["name","sg_projectcode"]):
-            		return p["sg_projectcode"]
+            projectcode = sg.find_one(
+                "Project",
+                [["name", "is", projectname]],
+                ["sg_projectcode"],
+            )
 
-            # Executing function to find projectcode
-            projectcode_entity = returnProjectId(projectname_entity)
-
-            # Returning projectcode as a replacement of the keyword
-            return projectcode_entity
+            return projectcode.get("sg_projectcode")
 
         # grab the shot from the cache, or the get_shot hook if not cached
         sg_shot = self._sg_lookup_cache.get(shot_code)
@@ -74,7 +73,9 @@ class HieroResolveCustomStrings(Hook):
             self._sg_lookup_cache[shot_code] = sg_shot
 
         if sg_shot is None:
-            raise RuntimeError("Could not find shot for custom resolver: %s" % keyword)
+            raise RuntimeError(
+                "Could not find shot for custom resolver: %s" % keyword
+            )
 
         # strip off the leading and trailing curly brackets
         keyword = keyword[1:-1]
