@@ -38,7 +38,6 @@ configuration:
                 category: { type: str}
                 output: { type: str }
                 data_type: { type: str }
-        description:
 
     custom_template_fields:
       type: list
