@@ -61,10 +61,10 @@ class ShotgunShotProcessorUI(
         CollatingExporterUI.__init__(self)
 
     def displayName(self):
-        return "Process as ShotGrid Shots"
+        return "Process as PTR Shots"
 
     def toolTip(self):
-        return "Process as ShotGrid Shots generates output on a per-shot basis and logs it in Shotgun."
+        return "Process as PTR Shots generates output on a per-shot basis and logs it in PTR."
 
     def populateUI(self, *args, **kwargs):
         """
@@ -84,9 +84,7 @@ class ShotgunShotProcessorUI(
         master_layout.setContentsMargins(0, 0, 0, 0)
 
         # add group box for shotgun stuff
-        shotgun_groupbox = QtGui.QGroupBox(
-            "ShotGrid Shot and Sequence Creation Settings"
-        )
+        shotgun_groupbox = QtGui.QGroupBox("PTR Shot and Sequence Creation Settings")
         master_layout.addWidget(shotgun_groupbox)
         shotgun_layout = QtGui.QVBoxLayout(shotgun_groupbox)
 
@@ -95,12 +93,13 @@ class ShotgunShotProcessorUI(
         header_text.setWordWrap(True)
         header_text.setText(
             """
-            <big>Welcome to the Netherlands Filmacademy Shot Exporter! :)</big>
-            <p>If you wish to use a 3D task template, make sure to assign tags to the shots. Otherwise the
-            2D Shot template will be assigned.</p>
-            <p>During exporting
-            each shot will be automatically renamed, rendered to a quicktime for
-            preview in ShotGrid, and a Nuke file including the read node will be created.
+            <big>Welcome to the Flow Production Tracking Shot Exporter!</big>
+            <p>When you are using the Flow Production Tracking Shot Processor, Shots and
+            Sequences in Flow Production Tracking will be created based on the curent timeline.
+            Existing Shots will be updated with the latest cut lengths.
+            Quicktimes for each shot will be reviewable in the Media app when
+            you use the special Flow Production Tracking Transcode plugin - all included and
+            ready to go in the default preset.
             </p>
             """
         )
@@ -168,7 +167,7 @@ class ShotgunShotProcessorUI(
         :param properties: A dict containing the 'sg_cut_type' preset
         :return: QtGui.QLayout - for the cut type widget
         """
-        tooltip = "What to populate in the `Type` field for this Cut in Shotgun"
+        tooltip = "What to populate in the `Type` field for this Cut in Flow Production Tracking"
 
         # ---- construct the widget
 
@@ -228,7 +227,7 @@ class ShotgunShotProcessorUI(
         statuses = schema["sg_status_list"]["properties"]["valid_values"]["value"]
 
         values = [statuses, templates]
-        labels = ["Shotgun Shot Status", "Shotgun Task Template for Shots"]
+        labels = ["PTR Shot Status", "PTR Task Template for Shots"]
         keys = ["sg_status_hiero_tags", "task_template_map"]
 
         # build a map of tag value pairs from the properties
@@ -344,7 +343,9 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         # Call pre processor hook here to make sure it happens pior to any 'hook_resolve_custom_strings'.
         # The order if execution is basically [init processor, resolve user entries, startProcessing].
         self.app.execute_hook(
-            "hook_pre_export", processor=self, base_class=HieroPreExport,
+            "hook_pre_export",
+            processor=self,
+            base_class=HieroPreExport,
         )
 
     def startProcessing(self, exportItems, preview=False):
@@ -379,7 +380,8 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
                 get_method="get_shot_processor_ui_properties",
             )
             sg_shot_properties = self._preset.properties().get(
-                "shotgunShotCreateProperties", dict(),
+                "shotgunShotCreateProperties",
+                dict(),
             )
 
             for property_data in custom_properties:
@@ -494,7 +496,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         if not self._cutsSupported():
             # cuts not supported. all done here
             self.app.log_info(
-                "No Cut support in this version of Shotgun. Not attempting to "
+                "No Cut support in this version of Flow Production Tracking. Not attempting to "
                 "create Cut or CutItem entries."
             )
             return
@@ -508,7 +510,8 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             "hook_update_cuts",
             "allow_cut_updates",
             preset_properties=self._preset.properties().get(
-                "shotgunShotCreateProperties", dict(),
+                "shotgunShotCreateProperties",
+                dict(),
             ),
             base_class=HieroUpdateCuts,
         )
@@ -523,15 +526,13 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         if collateTracks or collateShotNames:
             self.app.log_info(
                 "Cut support is ill defined for collating in Hiero. Not "
-                "attempting to create Cut or CutItem entries in Shotgun."
+                "attempting to create Cut or CutItem entries in Flow Production Tracking."
             )
             return
 
         # ---- at this point, we have the cut related tasks in order.
 
-        self.app.engine.show_busy(
-            "Preprocessing Sequence", "Creating Cut in Shotgun ..."
-        )
+        self.app.engine.show_busy("Preprocessing Sequence", "Creating Cut in PTR ...")
 
         # wrap in a try/catch to make sure we can clear the popup at the end
         try:
@@ -563,7 +564,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         parent_entity = None
 
         try:
-            # get the parent entity in SG that corresponds to the hiero sequence
+            # get the parent entity in PTR that corresponds to the hiero sequence
             parent_entity = self.app.execute_hook_method(
                 "hook_get_shot",
                 "get_shot_parent",
@@ -580,7 +581,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             self.app.log_warning(
                 "The method 'get_shot_parent' could not be found in the "
                 "'hook_get_shot' hook. In order to properly link the "
-                "Cut entity in SG, you will need to implement this method "
+                "Cut entity in PTR, you will need to implement this method "
                 "to return a Sequence, Episode, or some other entity "
                 "that corresponds to the Hiero sequence in your workflow."
             )
@@ -635,7 +636,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         used for frame exports called FrameServerRenderTask. This task type
         renders frames in an individual frame context within Nuke and therefore
         our quicktime write node never runs. Thus no quicktime upload for the
-        SG Version and no thumbnail.
+        PTR Version and no thumbnail.
 
         By overriding this method and forcing a value of ``False``, we trick
         the Hiero shot processor internals into thinking that there is no frame
@@ -663,7 +664,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # log a debug message in case something happens.
             self._app.log_debug(
                 "Unable to override the frame server check. If exporting individual "
-                "frames, this may prevent the upload of a quicktime to SG."
+                "frames, this may prevent the upload of a quicktime to PTR."
             )
 
     def _restore_frame_server_check(self):
@@ -696,7 +697,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         """
 
         # make sure the data cache is ready. this code may create entities in
-        # SG and they'll be stored here for reuse.
+        # PTR and they'll be stored here for reuse.
         if not hasattr(self.app, "preprocess_data"):
             self.app.preprocess_data = {}
 
@@ -783,7 +784,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # dont' want to assume that there is an associated transcode task.
             # if there is, attach the cut item data so that the version is
             # updated. If not, then we'll get a cut item without an associated
-            # version (cut info only in SG, nothing playable).
+            # version (cut info only in PTR, nothing playable).
             if transcode_task:
                 transcode_task._cut_item_data = cut_item_data
 
@@ -807,8 +808,10 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         # create the cut to get the id.
         sg = self.app.shotgun
         cut = sg.create("Cut", cut_data)
-        self._app.log_debug("Created Cut in Shotgun: %s" % (cut,))
-        self._app.log_info("Created Cut '%s' in Shotgun!" % (cut["code"],))
+        self._app.log_debug("Created Cut in Flow Production Tracking: %s" % (cut,))
+        self._app.log_info(
+            "Created Cut '%s' in Flow Production Tracking!" % (cut["code"],)
+        )
 
         # make sure the cut item data dicts are updated with the cut info
         for cut_item_data in cut_item_data_list:
@@ -869,7 +872,7 @@ class ShotgunShotProcessorPreset(
             ("Final", default_template),
         ]
 
-        # holds the cut type to use when creating Cut entires in SG
+        # holds the cut type to use when creating Cut entires in PTR
         default_properties["sg_cut_type"] = ""
 
         # Handle custom properties from the customize_export_ui hook.
@@ -896,7 +899,7 @@ class ShotgunShotProcessorPreset(
 
         resolver.addResolver(
             "{tk_version}",
-            "Version string formatted by Shotgun Toolkit.",
+            "Version string formatted by Flow Production Tracking.",
             lambda keyword, task: self._formatTkVersionString(task.versionString()),
         )
 

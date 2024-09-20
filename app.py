@@ -196,7 +196,7 @@ class HieroExport(Application):
         self._old_AddDefaultPresets_fn(overwrite)
 
         # Add Shotgun template
-        name = "NFA ShotGrid Shot"
+        name = "Planet X ShotGrid Shot"
         localpresets = [
             preset.name() for preset in hiero.core.taskRegistry.localPresets()
         ]

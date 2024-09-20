@@ -68,5 +68,3 @@ App that adds Shotgun awareness to Nuke Studio's sequence export.  It adds a new
 | `template_nuke_script_path` | A reference to a template which specifies what published nuke scripts will be named.  The translate template hook must understand how to translate this to Hiero keywords. |               |        |
 | `template_render_path`      | A reference to a template which specifies what renders will be named. The translate template hook must understand how to translate this to Hiero keywords.                 |               |        |
 | `template_version`          | String template that specifies how to format the Hiero tk_version token as a version string for tk.                                                                        |               |        |
-
-
