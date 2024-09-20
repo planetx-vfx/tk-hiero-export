@@ -50,7 +50,7 @@ class ShotgunNukeShotExporterUI(
         properties = self._preset.properties()
 
         for node in nodes:
-            name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
+            name = 'Toolkit Node: <%s> <%s> <%s>' % (node["category"], node["output"], node["data_type"])
             item = QtGui.QStandardItem(name)
             item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             if name in properties["toolkitWriteNodes"]:
@@ -269,8 +269,10 @@ class ShotgunNukeShotExporter(
 
     def _beforeNukeScriptWrite(self, script):
         """
-        Add ShotgunWriteNodePlaceholder Metadata nodes for tk-nuke-writenode to
+        Add ShotGridWriteNodePlaceholder Metadata nodes for tk-nuke-writenode to
         create full Tk WriteNodes in the Nuke environment
+
+        Also add createTemplatePlaceholder nodes to activate the conversion progress to a custom template.
         """
         FnNukeShotExporter.NukeShotExporter._beforeNukeScriptWrite(self, script)
 
@@ -290,23 +292,38 @@ class ShotgunNukeShotExporter(
         try:
             for toolkit_specifier in self._preset.properties()["toolkitWriteNodes"]:
                 # break down a string like 'Toolkit Node: Mono Dpx ("editorial")' into name and output
-                match = re.match(
-                    '^Toolkit Node: (?P<name>.+) \("(?P<output>.+)"\)',
-                    toolkit_specifier,
-                )
+                regex = "(?<=\<)(.*?)(?=\>)"
+                match = re.findall(regex, toolkit_specifier)
 
-                metadata = match.groupdict()
-                node = nuke.MetadataNode(metadatavalues=list(metadata.items()))
-                node.setName("ShotgunWriteNodePlaceholder")
+                dictionary = {
+                    "category": match[0],
+                    "output": match[1],
+                    "data_type": match[2],
+                }
+
+                shotGridWriteNode = nuke.MetadataNode(
+                    metadatavalues=list(dictionary.items())
+                )
+                shotGridWriteNode.setName("ShotGridWriteNodePlaceholder")
+
+                createTemplatePlaceholder = nuke.MetadataNode()
+                createTemplatePlaceholder.setName("createTemplatePlaceholder")
 
                 self.app.log_debug(
-                    "Created ShotgunWriteNodePlaceholder Node: %s" % node._knobValues
+                    "Created ShotgunWriteNodePlaceholder Node: %s"
+                    % shotGridWriteNode._knobValues
+                )
+
+                self.app.log_debug(
+                    "Created createTemplatePlaceholder Node: %s"
+                    % createTemplatePlaceholder._knobValues
                 )
                 # rather than using the script.addNode, we append our node directly to the nodeList
-                nodeList.append(node)
+                nodeList.append(shotGridWriteNode)
+                nodeList.append(createTemplatePlaceholder)
 
                 # now add our new node to the layout
-                currentLayoutContext.getNodes().append(node)
+                currentLayoutContext.getNodes().append(shotGridWriteNode)
         except Exception:
             self.app.logger.exception("Failed to add PTR writenodes")
         finally:
@@ -337,7 +354,7 @@ class ShotgunNukeShotPreset(
         toolkit_write_nodes = []
         nodes = self.app.get_setting("nuke_script_toolkit_write_nodes")
         for node in nodes:
-            name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
+            name = 'Toolkit Node: <%s> <%s> <%s>' % (node["category"], node["output"], node["data_type"])
             toolkit_write_nodes.append(name)
         self.properties()["toolkitWriteNodes"] = toolkit_write_nodes
 

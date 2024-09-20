@@ -47,7 +47,7 @@ class ShotgunShotUpdater(
         out_handle = handles
 
         # get the frame offset specified in the export options
-        startFrame = self._startFrame or 0
+        startFrame = self._startFrame or 1001
 
         # these are the source in/out frames. we'll use them to determine if we
         # have enough frames to account for the handles. versions of

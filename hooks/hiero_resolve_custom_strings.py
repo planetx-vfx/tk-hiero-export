@@ -7,7 +7,8 @@
 # By accessing, using, copying or modifying this work you indicate your
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
-
+import sgtk
+from tank.util import shotgun
 from tank import Hook
 
 
@@ -36,6 +37,23 @@ class HieroResolveCustomStrings(Hook):
         """
         shot_code = task._item.name()
 
+        if keyword == "{Projectcode}":
+            # Getting shotgun credentials
+            sg = shotgun.get_sg_connection()
+
+            # Finding current project name
+            current_engine = sgtk.platform.current_engine()
+            current_context = current_engine.context
+            projectname = current_context.project["name"]
+
+            projectcode = sg.find_one(
+                "Project",
+                [["name", "is", projectname]],
+                ["sg_projectcode"],
+            )
+
+            return projectcode.get("sg_projectcode")
+
         # grab the shot from the cache, or the get_shot hook if not cached
         sg_shot = self._sg_lookup_cache.get(shot_code)
         if sg_shot is None:
@@ -55,7 +73,9 @@ class HieroResolveCustomStrings(Hook):
             self._sg_lookup_cache[shot_code] = sg_shot
 
         if sg_shot is None:
-            raise RuntimeError("Could not find shot for custom resolver: %s" % keyword)
+            raise RuntimeError(
+                "Could not find shot for custom resolver: %s" % keyword
+            )
 
         # strip off the leading and trailing curly brackets
         keyword = keyword[1:-1]

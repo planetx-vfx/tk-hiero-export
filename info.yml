@@ -7,7 +7,7 @@ configuration:
                      creating new shots in Flow Production Tracking. This setting is presented
                      in the Custom Flow Production Tracking Export UI and you can change it
                      prior to running the export if you want.
-        default_value: Basic shot template
+        default_value: 2D Shot
 
     audio_published_file_type:
         type: tank_type
@@ -35,9 +35,9 @@ configuration:
         values:
             type: dict
             items:
-                channel: { type: str }
-                name: { type: str }
-        description:
+                category: { type: str}
+                output: { type: str }
+                data_type: { type: str }
 
     custom_template_fields:
       type: list
@@ -198,6 +198,14 @@ configuration:
 
     # paths
     template_plate_path:
+        type: template
+        description: "A reference to a template which specifies the directory to
+                     publish shot plates to.  The translate template hook must
+                     understand how to translate this to Hiero keywords."
+        required_fields: []
+        optional_fields: "*"
+
+    template_copy_path:
         type: template
         description: "A reference to a template which specifies the directory to
                      publish shot plates to.  The translate template hook must

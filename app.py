@@ -28,6 +28,7 @@ import hiero.core
 import hiero.exporters
 
 from hiero.exporters import FnExternalRender
+from hiero.exporters import FnCopyExporter
 from hiero.exporters import FnNukeShotExporter
 
 # do not use tk import here, hiero needs the classes to be in their
@@ -195,7 +196,7 @@ class HieroExport(Application):
         self._old_AddDefaultPresets_fn(overwrite)
 
         # Add Shotgun template
-        name = "Basic PTR Shot"
+        name = "Planet X ShotGrid Shot"
         localpresets = [
             preset.name() for preset in hiero.core.taskRegistry.localPresets()
         ]
@@ -206,6 +207,7 @@ class HieroExport(Application):
             plate_template = self.get_template("template_plate_path")
             script_template = self.get_template("template_nuke_script_path")
             render_template = self.get_template("template_render_path")
+            copy_template = self.get_template("template_copy_path")
 
             # call the hook to translate them into hiero paths, using hiero keywords
             plate_hiero_str = self.execute_hook(
@@ -227,10 +229,14 @@ class HieroExport(Application):
             )
             self.log_debug("Translated %s --> %s" % (render_template, render_hiero_str))
 
+            copy_hiero_str = self.execute_hook("hook_translate_template", template=copy_template, output_type='copy')
+            self.log_debug("Translated %s --> %s" % (copy_template, copy_hiero_str))
+
             # check so that no unknown keywords exist in the templates after translation
             self._validate_hiero_export_template(plate_hiero_str)
             self._validate_hiero_export_template(script_hiero_str)
             self._validate_hiero_export_template(render_hiero_str)
+            self._validate_hiero_export_template(copy_hiero_str)
 
             # and set the default properties to be based off of those templates
 
@@ -242,12 +248,12 @@ class HieroExport(Application):
                 "exportTemplate": (
                     (
                         script_hiero_str,
-                        ShotgunNukeShotPreset("", {"readPaths": [], "writePaths": []}),
+                        ShotgunNukeShotPreset("", {"readPaths": [copy_hiero_str.replace(os.sep, "/")], "writePaths": []}),
                     ),
                     (
                         render_hiero_str,
                         FnExternalRender.NukeRenderPreset(
-                            "", {"file_type": "dpx", "dpx": {"datatype": "10 bit"}}
+                            "", {"file_type": "exr", "exr": {"datatype": "16 bit"}}
                         ),
                     ),
                     (
@@ -256,11 +262,19 @@ class HieroExport(Application):
                             "", {"file_type": file_type, file_type: file_options}
                         ),
                     ),
+                    (
+                        copy_hiero_str,
+                        FnCopyExporter.CopyPreset(
+                            "", {}
+                        ),
+                    ),
                 )
             }
             preset = ShotgunShotProcessorPreset(name, properties)
             hiero.core.taskRegistry.removeProcessorPreset(name)
             hiero.core.taskRegistry.addProcessorPreset(name, preset)
+
+
 
     def _validate_hiero_export_template(self, template_str):
         """
