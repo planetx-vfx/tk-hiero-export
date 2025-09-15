@@ -274,8 +274,6 @@ class HieroExport(Application):
             hiero.core.taskRegistry.removeProcessorPreset(name)
             hiero.core.taskRegistry.addProcessorPreset(name, preset)
 
-
-
     def _validate_hiero_export_template(self, template_str):
         """
         Validate that a template_str only contains Hiero substitution keywords or custom

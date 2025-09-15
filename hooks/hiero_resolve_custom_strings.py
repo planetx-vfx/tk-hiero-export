@@ -73,9 +73,7 @@ class HieroResolveCustomStrings(Hook):
             self._sg_lookup_cache[shot_code] = sg_shot
 
         if sg_shot is None:
-            raise RuntimeError(
-                "Could not find shot for custom resolver: %s" % keyword
-            )
+            raise RuntimeError("Could not find shot for custom resolver: %s" % keyword)
 
         # strip off the leading and trailing curly brackets
         keyword = keyword[1:-1]

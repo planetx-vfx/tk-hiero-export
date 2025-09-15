@@ -50,7 +50,11 @@ class ShotgunNukeShotExporterUI(
         properties = self._preset.properties()
 
         for node in nodes:
-            name = 'Toolkit Node: <%s> <%s> <%s>' % (node["category"], node["output"], node["data_type"])
+            name = "Toolkit Node: <%s> <%s> <%s>" % (
+                node["category"],
+                node["output"],
+                node["data_type"],
+            )
             item = QtGui.QStandardItem(name)
             item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             if name in properties["toolkitWriteNodes"]:
@@ -354,7 +358,11 @@ class ShotgunNukeShotPreset(
         toolkit_write_nodes = []
         nodes = self.app.get_setting("nuke_script_toolkit_write_nodes")
         for node in nodes:
-            name = 'Toolkit Node: <%s> <%s> <%s>' % (node["category"], node["output"], node["data_type"])
+            name = "Toolkit Node: <%s> <%s> <%s>" % (
+                node["category"],
+                node["output"],
+                node["data_type"],
+            )
             toolkit_write_nodes.append(name)
         self.properties()["toolkitWriteNodes"] = toolkit_write_nodes
 
