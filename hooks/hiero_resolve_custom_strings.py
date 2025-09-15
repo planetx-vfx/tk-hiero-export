@@ -18,7 +18,7 @@ class HieroResolveCustomStrings(Hook):
     their concrete value when paths are being processed during the export.
     """
 
-    # Cache of shots that have already been pulled from shotgun
+    # Cache of shots that have already been pulled from flow production tracking
     _sg_lookup_cache = {}
 
     def execute(self, task, keyword, **kwargs):

@@ -35,7 +35,7 @@ class HieroGetShot(Hook):
         # shot parent field
         parent_field = "sg_sequence"
 
-        # grab shot from Shotgun
+        # grab shot from Flow Production Tracking
         sg = self.parent.shotgun
         filter = [
             ["project", "is", self.parent.context.project],
@@ -50,7 +50,7 @@ class HieroGetShot(Hook):
             # can not handle multiple shots with the same name
             raise Exception("Multiple shots named '%s' found", item.name())
         if len(shots) == 0:
-            # create shot in shotgun
+            # create shot in flow production tracking
             shot_data = {
                 "code": item.name(),
                 parent_field: parent,
@@ -79,10 +79,7 @@ class HieroGetShot(Hook):
     def get_shot_parent(self, hiero_sequence, data, **kwargs):
         """
         Given a Hiero sequence and data cache, return the corresponding entity
-        in Shotgun to serve as the parent for contained Shots.
-
-        .. note:: The data dict is typically the app's `preprocess_data` which
-            maintains the cache across invocations of this hook.
+        in Flow Production Tracking to serve as the parent for contained Shots.
 
         :param hiero_sequence: A Hiero sequence object
         :param dict data: A dictionary with cached parent data.
@@ -116,7 +113,7 @@ class HieroGetShot(Hook):
             )
 
         if len(parents) == 0:
-            # create the parent in shotgun
+            # create the parent in flow production tracking
             par_data = {
                 "code": hiero_sequence.name(),
                 "project": self.parent.context.project,

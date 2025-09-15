@@ -51,7 +51,7 @@ class ShotgunTranscodeExporterUI(
 
     def __init__(self, preset):
         FnTranscodeExporterUI.TranscodeExporterUI.__init__(self, preset)
-        self._displayName = "PTR Transcode Images"
+        self._displayName = "FPTR Transcode Images"
         self._taskType = ShotgunTranscodeExporter
 
     def create_version_changed(self, state):
@@ -74,12 +74,12 @@ class ShotgunTranscodeExporterUI(
 
         top_layout = QtGui.QVBoxLayout()
         top_layout.setContentsMargins(9, 0, 9, 0)
-        create_version_checkbox = QtGui.QCheckBox("Create PTR Version", widget)
+        create_version_checkbox = QtGui.QCheckBox("Create FPTR Version", widget)
         create_version_checkbox.setToolTip(
-            "Create a Version in PTR for this transcode.\n\n"
+            "Create a Version in FPTR for this transcode.\n\n"
             "If the output format is not a quicktime, then\n"
             "a quicktime will be created.  The quicktime will\n"
-            "be uploaded to PTR as Screening Room media."
+            "be uploaded to FPTR as Screening Room media."
         )
 
         create_version_checkbox.setCheckState(QtCore.Qt.Checked)
@@ -189,7 +189,7 @@ class ShotgunTranscodeExporter(
 
         self._quicktime_path = os.path.join(tempfile.mkdtemp(), "preview.mov")
         self._temp_quicktime = True
-        nodeName = "PTR Screening Room Media"
+        nodeName = "FPTR Screening Room Media"
 
         framerate = None
         if self._sequence:
@@ -425,7 +425,7 @@ class ShotgunTranscodeExporter(
         pub_data = tank.util.register_publish(**args)
         if self._extra_publish_data is not None:
             self.app.log_debug(
-                "Updating PTR %s %s"
+                "Updating FPTR %s %s"
                 % (published_file_entity_type, str(self._extra_publish_data))
             )
             self.app.shotgun.update(
@@ -450,7 +450,7 @@ class ShotgunTranscodeExporter(
             else:  # == "TankPublishedFile
                 self._version_data["tank_published_file"] = pub_data
 
-            self.app.log_debug("Creating PTR Version %s" % str(self._version_data))
+            self.app.log_debug("Creating FPTR Version %s" % str(self._version_data))
             vers = self.app.shotgun.create("Version", self._version_data)
 
             if os.path.exists(self._quicktime_path):
@@ -505,7 +505,7 @@ class ShotgunTranscodeExporter(
 class ShotgunTranscodePreset(
     ShotgunHieroObjectBase, FnTranscodeExporter.TranscodePreset, CollatedShotPreset
 ):
-    """Settings for the PTR transcode step"""
+    """Settings for the FPTR transcode step"""
 
     def __init__(self, name, properties):
         FnTranscodeExporter.TranscodePreset.__init__(self, name, properties)
