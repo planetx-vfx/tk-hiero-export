@@ -338,7 +338,6 @@ class ShotgunTranscodeExporter(
 
             file_name = os.path.basename(self._resolved_export_path)
             file_name = os.path.splitext(file_name)[0]
-            file_name = file_name.capitalize()
 
             # use the head/tail to populate frame first/last/range fields on
             # the Version
