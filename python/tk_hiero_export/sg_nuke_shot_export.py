@@ -253,6 +253,17 @@ class ShotgunNukeShotExporter(
         # upload thumbnail for sequence
         self._upload_thumbnail_to_sg(sg_publish, self._thumbnail)
 
+        # create filesystem structure for task
+        if args.get("task"):
+            self.app.logger.debug(
+                "Creating filesystem structure for task %s" % args.get("task")
+            )
+            self.app.sgtk.create_filesystem_structure(
+                args.get("task").get("type"),
+                args.get("task").get("id"),
+                engine=self.app.engine.instance_name,
+            )
+
         # Log usage metrics
         try:
             self.app.log_metric("Shot Export", log_version=True)
