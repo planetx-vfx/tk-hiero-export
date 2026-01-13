@@ -164,24 +164,32 @@ class ShotgunShotUpdater(
         cut_out = cut_info["cut_item_out"]
         cut_duration = cut_info["cut_item_duration"]
         working_duration = cut_info["working_duration"]
+        edit_duration = cut_info["edit_duration"]
 
-        self.app.log_debug("Head/Tail from Hiero: %s, %s" % (head_in, tail_out))
+        if not prequeue:
+            self.app.log_debug("Head/Tail from Hiero: %s, %s" % (head_in, tail_out))
+
+            if cut_duration != edit_duration:
+                self.app.log_warning(
+                    "It looks like the shot %s has a retime applied. FPTR cuts do "
+                    "not support retimes." % (self.clipName(),)
+                )
+
+        if not self._has_nuke_backend() and self.isCollated():
+            head_in -= self.HEAD_ROOM_OFFSET
+            tail_out -= self.HEAD_ROOM_OFFSET
 
         if self.isCollated():
-
             if self.is_cut_length_export():
-                # nothing to do here. the default calculation above is enough.
-                self.app.log_debug("Exporting... collated, cut length.")
-
-                # Log cut length collate metric
-                try:
-                    self.app.log_metric("Collate/Cut Length", log_version=True)
-                except:
-                    # ingore any errors. ex: metrics logging not supported
-                    pass
-
+                if not prequeue:
+                    self.app.log_debug("Exporting... collated, cut length.")
+                    try:
+                        self.app.log_metric("Collate/Cut Length", log_version=True)
+                    except:
+                        pass
             else:
-                self.app.log_debug("Exporting... collated, clip length.")
+                if not prequeue:
+                    self.app.log_debug("Exporting... collated, clip length.")
 
                 # NOTE: Hiero crashes when trying to collate with a
                 # custom start frame. so this will only work for source start
@@ -216,19 +224,21 @@ class ShotgunShotUpdater(
                 cut_duration = cut_out - cut_in + 1
 
                 # Log clip length collate metric
-                try:
-                    self.app.log_metric("Collate/Clip Length", log_version=True)
-                except:
-                    # ingore any errors. ex: metrics logging not supported
-                    pass
+                if not prequeue:
+                    try:
+                        self.app.log_metric("Collate/Clip Length", log_version=True)
+                    except:
+                        # ingore any errors. ex: metrics logging not supported
+                        pass
 
         else:
-            # regular export. values we have are good. just log it
-            if self.is_cut_length_export():
-                self.app.log_debug("Exporting... cut length.")
-            else:
-                # the cut in/out should already be correct here. just log
-                self.app.log_debug("Exporting... clip length.")
+            if not prequeue:
+                # regular export. values we have are good. just log it
+                if self.is_cut_length_export():
+                    self.app.log_debug("Exporting... cut length.")
+                else:
+                    # the cut in/out should already be correct here. just log
+                    self.app.log_debug("Exporting... clip length.")
 
         # update the frame range
         sg_shot["sg_head_in"] = head_in
