@@ -512,6 +512,9 @@ class ShotgunTranscodePreset(
         # set default values
         self._properties["create_version"] = True
 
+        # Update properties dictionary with data from file
+        self._properties.update(properties)
+
         # Handle custom properties from the customize_export_ui hook.
         custom_properties = (
             self._get_custom_properties("get_transcode_exporter_ui_properties") or []
