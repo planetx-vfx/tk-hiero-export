@@ -11,25 +11,17 @@
 """
 Update the Hiero export to be Tank/Shotgun aware
 """
-import re
 import os
+import re
 import sys
-import shutil
-import tempfile
-import traceback
 
-import sgtk
-from sgtk.platform.qt import QtCore
-from sgtk.platform import Application
-from sgtk import TankError
-
-import hiero.ui
 import hiero.core
 import hiero.exporters
-
-from hiero.exporters import FnExternalRender
-from hiero.exporters import FnCopyExporter
-from hiero.exporters import FnNukeShotExporter
+import hiero.ui
+import sgtk
+from sgtk import TankError
+from sgtk.platform import Application
+from sgtk.platform.qt import QtCore
 
 # do not use tk import here, hiero needs the classes to be in their
 # standard namespace, hack to get the right path in sys.path
@@ -42,14 +34,17 @@ from tk_hiero_export import (
     ShotgunTranscodePreset,
     ShotgunNukeShotPreset,
     ShotgunAudioPreset,
+    ShotgunCopyPreset,
     ShotgunShotUpdaterPreset,
     ShotgunTranscodeExporter,
     ShotgunNukeShotExporter,
     ShotgunAudioExporter,
+    ShotgunCopyExporter,
     ShotgunShotProcessorPreset,
     ShotgunTranscodeExporterUI,
     ShotgunNukeShotExporterUI,
     ShotgunAudioExporterUI,
+    ShotgunCopyExporterUI,
     ShotgunHieroObjectBase,
 )
 
@@ -166,6 +161,7 @@ class HieroExport(Application):
             ShotgunNukeShotPreset, ShotgunNukeShotExporter
         )
         hiero.core.taskRegistry.registerTask(ShotgunAudioPreset, ShotgunAudioExporter)
+        hiero.core.taskRegistry.registerTask(ShotgunCopyPreset, ShotgunCopyExporter)
         hiero.core.taskRegistry.registerProcessor(
             ShotgunShotProcessorPreset, ShotgunShotProcessor
         )
@@ -179,6 +175,7 @@ class HieroExport(Application):
         hiero.ui.taskUIRegistry.registerTaskUI(
             ShotgunAudioPreset, ShotgunAudioExporterUI
         )
+        hiero.ui.taskUIRegistry.registerTaskUI(ShotgunCopyPreset, ShotgunCopyExporterUI)
         hiero.ui.taskUIRegistry.registerProcessorUI(
             ShotgunShotProcessorPreset, ShotgunShotProcessorUI
         )
@@ -195,84 +192,138 @@ class HieroExport(Application):
         # add all built-in defaults
         self._old_AddDefaultPresets_fn(overwrite)
 
-        # Add Shotgun template
-        name = "Planet X ShotGrid Shot"
-        localpresets = [
-            preset.name() for preset in hiero.core.taskRegistry.localPresets()
-        ]
+        # Add Shotgun templates
+        PLATE_PRESET = "Planet X FPTR Plate"
+        OFFLINE_PRESET = "Planet X FPTR Offline"
 
-        # only add the preset if it is not already there - or if a reset to defaults is requested.
-        if overwrite or name not in localpresets:
-            # grab all our path templates
-            plate_template = self.get_template("template_plate_path")
-            script_template = self.get_template("template_nuke_script_path")
-            render_template = self.get_template("template_render_path")
-            copy_template = self.get_template("template_copy_path")
+        # Disable next code to reset template on every Hiero launch
+        # presets = [PLATE_PRESET, OFFLINE_PRESET]
+        # localpresets = [
+        #     preset.name() for preset in hiero.core.taskRegistry.localPresets()
+        # ]
+        #
+        # # only add the preset if it is not already there - or if a reset to defaults is requested.
+        # if overwrite or [x for x in presets if x not in localpresets]:
+        # grab all our path templates
+        plate_template = self.get_template("template_plate_path")
+        script_template = self.get_template("template_nuke_script_path")
+        offline_template = self.get_template("template_offline_path")
+        proxy_template = self.get_template("template_proxy_path")
 
-            # call the hook to translate them into hiero paths, using hiero keywords
-            plate_hiero_str = self.execute_hook(
-                "hook_translate_template", template=plate_template, output_type="plate"
-            )
-            self.log_debug("Translated %s --> %s" % (plate_template, plate_hiero_str))
+        # call the hook to translate them into hiero paths, using hiero keywords
+        plate_hiero_str = self.execute_hook(
+            "hook_translate_template", template=plate_template, output_type="plate"
+        )
+        self.log_debug("Translated %s --> %s" % (plate_template, plate_hiero_str))
 
-            script_hiero_str = self.execute_hook(
-                "hook_translate_template",
-                template=script_template,
-                output_type="script",
-            )
-            self.log_debug("Translated %s --> %s" % (script_template, script_hiero_str))
+        script_hiero_str = self.execute_hook(
+            "hook_translate_template",
+            template=script_template,
+            output_type="script",
+        )
+        self.log_debug("Translated %s --> %s" % (script_template, script_hiero_str))
 
-            render_hiero_str = self.execute_hook(
-                "hook_translate_template",
-                template=render_template,
-                output_type="render",
-            )
-            self.log_debug("Translated %s --> %s" % (render_template, render_hiero_str))
+        offline_hiero_str = self.execute_hook(
+            "hook_translate_template",
+            template=offline_template,
+            output_type="offline",
+        )
+        self.log_debug("Translated %s --> %s" % (offline_template, offline_hiero_str))
 
-            copy_hiero_str = self.execute_hook("hook_translate_template", template=copy_template, output_type='copy')
-            self.log_debug("Translated %s --> %s" % (copy_template, copy_hiero_str))
+        proxy_hiero_str = self.execute_hook(
+            "hook_translate_template", template=proxy_template, output_type="proxy"
+        )
+        self.log_debug("Translated %s --> %s" % (proxy_template, proxy_hiero_str))
 
-            # check so that no unknown keywords exist in the templates after translation
-            self._validate_hiero_export_template(plate_hiero_str)
-            self._validate_hiero_export_template(script_hiero_str)
-            self._validate_hiero_export_template(render_hiero_str)
-            self._validate_hiero_export_template(copy_hiero_str)
+        # check so that no unknown keywords exist in the templates after translation
+        self._validate_hiero_export_template(plate_hiero_str)
+        self._validate_hiero_export_template(script_hiero_str)
+        self._validate_hiero_export_template(offline_hiero_str)
+        self._validate_hiero_export_template(proxy_hiero_str)
 
-            # and set the default properties to be based off of those templates
+        # and set the default properties to be based off of those templates
 
-            # Set the quicktime defaults per our hook
-            file_type, file_options = self.execute_hook(
-                "hook_get_quicktime_settings", for_shotgun=False
-            )
-            properties = {
-                "exportTemplate": (
-                    (
-                        script_hiero_str,
-                        ShotgunNukeShotPreset("", {"readPaths": [copy_hiero_str.replace(os.sep, "/")], "writePaths": []}),
+        # Set the quicktime defaults per our hook
+        file_type, file_options = self.execute_hook(
+            "hook_get_quicktime_settings", for_shotgun=False
+        )
+
+        # Plate preset
+        plate_properties = {
+            "exportTemplate": (
+                # Shot Nuke script
+                (
+                    script_hiero_str,
+                    ShotgunNukeShotPreset(
+                        "",
+                        {
+                            "readPaths": [plate_hiero_str.replace(os.sep, "/")],
+                            "writePaths": [],
+                        },
                     ),
-                    (
-                        render_hiero_str,
-                        FnExternalRender.NukeRenderPreset(
-                            "", {"file_type": "exr", "exr": {"datatype": "16 bit"}}
-                        ),
+                ),
+                # Shot offline
+                (
+                    offline_hiero_str,
+                    ShotgunTranscodePreset(
+                        "",
+                        {
+                            "file_type": file_type,
+                            file_type: file_options,
+                            "template": offline_template.name,
+                        },
                     ),
-                    (
-                        plate_hiero_str,
-                        ShotgunTranscodePreset(
-                            "", {"file_type": file_type, file_type: file_options}
-                        ),
+                ),
+                # Shot plate
+                (
+                    plate_hiero_str,
+                    ShotgunCopyPreset(
+                        "",
+                        {"create_version": False},
                     ),
-                    (
-                        copy_hiero_str,
-                        FnCopyExporter.CopyPreset(
-                            "", {}
-                        ),
+                ),
+                # Shot proxy
+                (
+                    proxy_hiero_str,
+                    ShotgunTranscodePreset(
+                        "",
+                        {
+                            "file_type": "jpeg",
+                            "colourspace": "sRGB - Texture",
+                            "create_version": False,
+                            "template": proxy_template.name,
+                        },
                     ),
-                )
-            }
-            preset = ShotgunShotProcessorPreset(name, properties)
-            hiero.core.taskRegistry.removeProcessorPreset(name)
-            hiero.core.taskRegistry.addProcessorPreset(name, preset)
+                ),
+            ),
+            "shotgunShotCreateProperties": {
+                "collateShotNames": True,
+            },
+        }
+        preset = ShotgunShotProcessorPreset(PLATE_PRESET, plate_properties)
+        hiero.core.taskRegistry.removeProcessorPreset(PLATE_PRESET)
+        hiero.core.taskRegistry.addProcessorPreset(PLATE_PRESET, preset)
+
+        # Offline preset
+        offline_properties = {
+            "exportTemplate": (
+                # Shot offline
+                (
+                    offline_hiero_str,
+                    ShotgunTranscodePreset(
+                        "",
+                        {
+                            "file_type": file_type,
+                            file_type: file_options,
+                            "template": offline_template.name,
+                        },
+                    ),
+                ),
+            )
+        }
+        preset = ShotgunShotProcessorPreset(OFFLINE_PRESET, offline_properties)
+        hiero.core.taskRegistry.removeProcessorPreset(OFFLINE_PRESET)
+        hiero.core.taskRegistry.addProcessorPreset(OFFLINE_PRESET, preset)
 
     def _validate_hiero_export_template(self, template_str):
         """
