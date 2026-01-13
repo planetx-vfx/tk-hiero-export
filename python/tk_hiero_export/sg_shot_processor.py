@@ -486,6 +486,12 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # Cut order is 1-based
             shot_updater_task._cut_order = i + 1
 
+            # Ensure collated shots have their tasks and templates prepared
+            # before the export queue runs. Non-collated exports already run
+            # the updater task before any other work takes place.
+            if shot_updater_task.isCollated():
+                shot_updater_task.prepare_shot_for_export()
+
         # if you're wondering why we looped over the tasks above only to bail
         # out here if cuts support isn't available for the site, it's to
         # maintain backward compatibility for updating the Shot entities with
