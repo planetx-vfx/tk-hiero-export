@@ -220,11 +220,11 @@ configuration:
         required_fields: []
         optional_fields: "*"
 
-    template_render_path:
+    template_proxy_path:
         type: template
-        description: "A reference to a template which specifies what renders will
-                     be named. The translate template hook must understand how
-                     to translate this to Hiero keywords."
+        description: "A reference to a template which specifies the directory to
+                     publish shot proxies to. The translate template hook must
+                     understand how to translate this to Hiero keywords."
         required_fields: []
         optional_fields: "*"
 
