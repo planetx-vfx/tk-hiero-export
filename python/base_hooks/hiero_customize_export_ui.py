@@ -214,6 +214,58 @@ class HieroCustomizeExportUI(HookBaseClass):
         """
         return
 
+    def create_copy_exporter_widget(self, parent_widget):
+        """
+        Builds and returns a custom widget to be embedded in the parent exporter.
+        If a custom widget is returned by this method, it will be added to the
+        parent exporter's layout.
+
+        .. note:: See the :meth:`create_copy_exporter_widget` method for
+            more detailed documentation.
+
+        :param parent_widget: The parent widget.
+
+        :returns: A custom widget.
+        """
+        return None
+
+    def get_copy_exporter_ui_properties(self):
+        """
+        Gets a list of property dictionaries describing the custom properties
+        required by the custom widget. This method will only be run if the
+        associated create widget hook method returns a widget. The dictionaries
+        will be turned into property widgets by the app before being passed to
+        the associated set properties hook method. The order that the dictionaries
+        are returned by this method is maintained when they are passed to the
+        associated set hook method.
+
+        .. note:: See the :meth:`get_shot_processor_ui_properties` method for
+            more detailed documentation.
+
+        :returns: A list of dictionaries.
+        :rtype: list
+        """
+        return []
+
+    def set_copy_exporter_ui_properties(self, widget, properties):
+        """
+        Sets any custom properties described by set_copy_exporter_ui_properties
+        on the custom widget returned by create_copy_exporter_widget. This method
+        will only be called if the create method is implemented to return a custom
+        widget. The order of the properties within the dictionary passed in is the
+        same as the order they're returned in the get properties hook method.
+
+        .. note:: See the :meth:`set_shot_processor_ui_properties` method for
+            for an example implementation.
+
+        :param widget: The Qt widget that was created by the associated create
+            widget hook method.
+        :param OrderedDict properties: A dict containing property widget
+            objects, keyed by label, that were constructed from the data
+            built by the associated get properties hook method.
+        """
+        return
+
     def create_nuke_shot_exporter_widget(self, parent_widget):
         """
         Builds and returns a custom widget to be embedded in the parent exporter.
