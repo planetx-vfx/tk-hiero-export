@@ -212,6 +212,11 @@ class ShotgunNukeShotExporter(
                 tasks = self.app.shotgun.find("Task", task_filter)
                 if len(tasks) == 1:
                     args["task"] = tasks[0]
+                else:
+                    self.app.log_error(
+                        ("No" if len(tasks) == 0 else "Too many")
+                        + " tasks found for writing nuke script."
+                    )
             except ValueError:
                 # continue without task
                 self.app.log_error("Invalid value for 'default_task_filter'")
