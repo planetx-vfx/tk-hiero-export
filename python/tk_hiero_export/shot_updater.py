@@ -120,19 +120,17 @@ class ShotgunShotUpdater(
             "working_duration": working_duration,
         }
 
-    def taskStep(self):
-        """
-        Execution payload.
-        """
-        # Only process actual shots... so uncollated items and hero collated items
-        if self.isCollated() and not self.isHero():
-            return False
+    def finishTask(self):
+        FnShotExporter.ShotTask.finishTask(self)
+        CollatingExporter.finishTask(self)
 
-        # execute base class
-        FnShotExporter.ShotTask.taskStep(self)
+    def prepare_shot_for_export(self):
+        """Ensure the Flow Production Tracking shot data is ready before export."""
+        self._update_shot_entity(prequeue=True)
 
-        # call the preprocess hook to get extra values
-        if self.app.shot_count == 0:
+    def _build_shotgun_entity_data(self, prequeue=False):
+        """Return the data required to update the Flow Production Tracking Shot."""
+        if not hasattr(self.app, "preprocess_data"):
             self.app.preprocess_data = {}
 
         sg_shot = self.app.execute_hook(
@@ -279,6 +277,13 @@ class ShotgunShotUpdater(
         if template is not None:
             sg_shot["task_template"] = template
 
+        return shot_type, shot_id, sg_shot
+
+    def _update_shot_entity(self, prequeue=False):
+        """Update the Flow Production Tracking shot, optionally skipping side effects."""
+
+        shot_type, shot_id, sg_shot = self._build_shotgun_entity_data(prequeue=prequeue)
+
         # commit the changes and update the thumbnail
         self.app.execute_hook_method(
             "hook_update_shot",
@@ -289,6 +294,9 @@ class ShotgunShotUpdater(
             preset_properties=self._preset.properties(),
             base_class=HieroUpdateShot,
         )
+
+        if prequeue:
+            return shot_type, shot_id
 
         # create the directory structure
         self.app.execute_hook_method(
@@ -305,6 +313,35 @@ class ShotgunShotUpdater(
 
         # keep shot count
         self.app.shot_count += 1
+
+        return shot_type, shot_id
+
+    def taskStep(self):
+        """
+        Execution payload.
+        """
+
+        self.app.log_debug(
+            "Running shot updater for task %s; isCollated %s, isHero %s, skipping %s"
+            % (
+                self._item,
+                self.isCollated(),
+                self.isHero(),
+                self.isCollated() and not self.isHero(),
+            )
+        )
+
+        # Only process actual shots... so uncollated items and hero collated items
+        if self.isCollated() and not self.isHero():
+            return False
+
+        # execute base class
+        FnShotExporter.ShotTask.taskStep(self)
+
+        if self.app.shot_count == 0:
+            self.app.preprocess_data = {}
+
+        self._update_shot_entity()
 
         # create the CutItem with the data populated by the shot processor
         cut = None
