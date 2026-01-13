@@ -35,9 +35,8 @@ configuration:
         values:
             type: dict
             items:
-                category: { type: str}
-                output: { type: str }
-                data_type: { type: str }
+                channel: { type: str }
+                name: { type: str }
 
     custom_template_fields:
       type: list
