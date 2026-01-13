@@ -491,6 +491,61 @@ class ShotgunTranscodeExporter(
                         {"type": "CutItem", "id": cut_item_id}, self._thumbnail
                     )
 
+        # If deadline submission, update job
+        if self._submission.__class__.__name__ == "DeadlineRenderSubmission":
+            if "DEADLINE_PATH" in os.environ:
+                deadline_command = (
+                    Path(os.environ["DEADLINE_PATH"]) / "deadlinecommand.exe"
+                ).as_posix()
+
+                # TODO this updates all deadline jobs instead of the submission
+
+                # Find the matching job
+                job = next(
+                    (
+                        j
+                        for j in self._submission.jobs
+                        if j.outputPath == self._resolved_export_path
+                    ),
+                    None,
+                )
+
+                if job:
+                    process = subprocess.Popen(
+                        [
+                            deadline_command,
+                            "-SetJobExtraInfoKeyValue",
+                            job.jobId,
+                            "VersionId",
+                            str(vers.get("id", "")),
+                        ],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        shell=True,
+                    )
+                    self.app.logger.debug(process.communicate()[0].decode("utf-8"))
+                    if not job.keep_suspended:
+                        process = subprocess.Popen(
+                            [
+                                deadline_command,
+                                "-ResumeJob",
+                                job.jobId,
+                            ],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            shell=True,
+                        )
+                        self.app.logger.debug(process.communicate()[0].decode("utf-8"))
+                else:
+                    self.app.logger.error(
+                        "Can't find deadline job for %s.",
+                        os.path.basename(self._resolved_export_path),
+                    )
+            else:
+                self.app.logger.error("Can't find deadline to update job.")
+
         # Log usage metrics
         try:
             self.app.log_metric("Transcode & Publish", log_version=True)
