@@ -64,9 +64,9 @@ App that adds Flow Production Tracking awareness to Nuke Studio's sequence expor
 | Name                        | Description                                                                                                                                                                | Default value | Fields |
 |-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|--------|
 | `template_plate_path`       | A reference to a template which specifies the directory to publish shot plates to.  The translate template hook must understand how to translate this to Hiero keywords.   |               |        |
-| `template_copy_path`        | A reference to a template which specifies the directory to publish shot plates to.  The translate template hook must understand how to translate this to Hiero keywords.   |               |        |
+| `template_offline_path`     | A reference to a template which specifies the directory to publish shot offlines to. The translate template hook must understand how to translate this to Hiero keywords.  |               |        |
 | `template_nuke_script_path` | A reference to a template which specifies what published nuke scripts will be named.  The translate template hook must understand how to translate this to Hiero keywords. |               |        |
-| `template_render_path`      | A reference to a template which specifies what renders will be named. The translate template hook must understand how to translate this to Hiero keywords.                 |               |        |
+| `template_proxy_path`       | A reference to a template which specifies the directory to publish shot proxies to. The translate template hook must understand how to translate this to Hiero keywords.   |               |        |
 | `template_version`          | String template that specifies how to format the Hiero tk_version token as a version string for tk.                                                                        |               |        |
 
 
