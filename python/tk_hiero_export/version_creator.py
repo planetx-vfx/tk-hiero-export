@@ -8,28 +8,24 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import os
 import ast
-import sys
-import shutil
-import tempfile
 import inspect
+import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 
+import hiero
+import hiero.core.nuke as nuke
+import sgtk.util
+import tank
+from hiero import core
+from hiero.core import *
 from hiero.exporters import FnExternalRender
 from hiero.exporters import FnTranscodeExporter
 from hiero.exporters import FnTranscodeExporterUI
-
-import hiero
-from hiero import core
-from hiero.core import *
-import hiero.core.nuke as nuke
-
-import tank
-import sgtk.util
 from sgtk.platform.qt import QtGui, QtCore
-
-from .base import ShotgunHieroObjectBase
-from .collating_exporter import CollatingExporter, CollatedShotPreset
 
 from . import (
     HieroGetQuicktimeSettings,
@@ -38,6 +34,8 @@ from . import (
     HieroGetExtraPublishData,
     HieroPostVersionCreation,
 )
+from .base import ShotgunHieroObjectBase
+from .collating_exporter import CollatingExporter, CollatedShotPreset
 
 
 class ShotgunTranscodeExporterUI(
