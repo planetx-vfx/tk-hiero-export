@@ -204,10 +204,10 @@ configuration:
         required_fields: []
         optional_fields: "*"
 
-    template_copy_path:
+    template_offline_path:
         type: template
         description: "A reference to a template which specifies the directory to
-                     publish shot plates to.  The translate template hook must
+                     publish shot offlines to. The translate template hook must
                      understand how to translate this to Hiero keywords."
         required_fields: []
         optional_fields: "*"

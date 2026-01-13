@@ -303,6 +303,63 @@ class ShotgunNukeShotExporter(
         # the script by temporarily removing the viewer node and then adding it back in.
         nodeList = script.getNodes()
 
+        read_nodes = [node for node in nodeList if isinstance(node, ReadNode)]
+
+        for item in self._collatedItems if self._collate else [self._item]:
+            try:
+                file_source = item.source().mediaSource().fileinfos()[0].filename()
+            except:
+                continue
+
+            # Replace existing read nodes with exported/published paths
+            for node in read_nodes:
+                if file_source == node.knob("file"):
+                    episode_entity = self.app.execute_hook_method(
+                        "hook_get_shot",
+                        "get_episode",
+                        data=self.app.preprocess_data,
+                        hiero_sequence=item.parentSequence(),
+                    )
+
+                    plate_template = self.app.get_template("template_plate_path")
+                    offline_template = self.app.get_template("template_offline_path")
+                    fields = {
+                        "Episode": episode_entity["code"],
+                        "Sequence": item.parentSequence().name(),
+                        "Shot": item.name(),
+                        "track": item.parentTrack().name(),
+                        "version": int(self._tk_version_number),
+                    }
+                    plate_path = plate_template.apply_fields(fields)
+                    offline_path = offline_template.apply_fields(fields)
+
+                    # Skip if file path already matches template
+                    if plate_path == node.knob("file") or offline_path == node.knob(
+                        "file"
+                    ):
+                        continue
+
+                    if Path(plate_path).suffix == Path(node.knob("file")).suffix:
+                        template_name = plate_template.name
+                        file_path = plate_path
+                    else:
+                        template_name = offline_template.name
+                        file_path = offline_path
+
+                    if file_path is not None:
+                        node.setKnob(
+                            "file",
+                            file_path.replace(os.path.sep, "/"),
+                        )
+
+                        label = [
+                            f"Template: {template_name}",
+                            *[f"{key}: {value}" for key, value in fields.items()],
+                        ]
+                        node.setKnob("label", "\n".join(label))
+
+                    break
+
         currentLayoutContext = script._layoutContextStack[-1]
 
         # extract the current end Node from the script but keep hold of it so we can add it back on.
