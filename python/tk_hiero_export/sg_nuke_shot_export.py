@@ -50,11 +50,7 @@ class ShotgunNukeShotExporterUI(
         properties = self._preset.properties()
 
         for node in nodes:
-            name = "Toolkit Node: <%s> <%s> <%s>" % (
-                node["category"],
-                node["output"],
-                node["data_type"],
-            )
+            name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
             item = QtGui.QStandardItem(name)
             item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             if name in properties["toolkitWriteNodes"]:
@@ -296,19 +292,16 @@ class ShotgunNukeShotExporter(
         try:
             for toolkit_specifier in self._preset.properties()["toolkitWriteNodes"]:
                 # break down a string like 'Toolkit Node: Mono Dpx ("editorial")' into name and output
-                regex = "(?<=\<)(.*?)(?=\>)"
-                match = re.findall(regex, toolkit_specifier)
-
-                dictionary = {
-                    "category": match[0],
-                    "output": match[1],
-                    "data_type": match[2],
-                }
+                match = re.match(
+                    '^Toolkit Node: (?P<name>.+) \("(?P<output>.+)"\)',
+                    toolkit_specifier,
+                )
+                metadata = match.groupdict()
 
                 shotGridWriteNode = nuke.MetadataNode(
-                    metadatavalues=list(dictionary.items())
+                    metadatavalues=list(metadata.items())
                 )
-                shotGridWriteNode.setName("ShotGridWriteNodePlaceholder")
+                shotGridWriteNode.setName("ShotgunWriteNodePlaceholder")
 
                 createTemplatePlaceholder = nuke.MetadataNode()
                 createTemplatePlaceholder.setName("createTemplatePlaceholder")
@@ -358,11 +351,7 @@ class ShotgunNukeShotPreset(
         toolkit_write_nodes = []
         nodes = self.app.get_setting("nuke_script_toolkit_write_nodes")
         for node in nodes:
-            name = "Toolkit Node: <%s> <%s> <%s>" % (
-                node["category"],
-                node["output"],
-                node["data_type"],
-            )
+            name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
             toolkit_write_nodes.append(name)
         self.properties()["toolkitWriteNodes"] = toolkit_write_nodes
 
