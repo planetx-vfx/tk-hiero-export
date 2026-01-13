@@ -8,21 +8,22 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import re
-import os
-import sys
 import ast
-
-from hiero.core import nuke
-from hiero.exporters import FnNukeShotExporter
-from hiero.exporters import FnNukeShotExporterUI
-from .collating_exporter import CollatedShotPreset
+import os
+import re
+import sys
+from pathlib import Path
 
 import sgtk
+from hiero.core import nuke
+from hiero.core.nuke import ReadNode
+from hiero.exporters import FnNukeShotExporter
+from hiero.exporters import FnNukeShotExporterUI
 from sgtk.platform.qt import QtGui, QtCore
 
-from .base import ShotgunHieroObjectBase
 from . import HieroGetExtraPublishData
+from .base import ShotgunHieroObjectBase
+from .collating_exporter import CollatedShotPreset
 
 
 class ShotgunNukeShotExporterUI(
