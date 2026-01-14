@@ -61,10 +61,10 @@ class ShotgunShotProcessorUI(
         CollatingExporterUI.__init__(self)
 
     def displayName(self):
-        return "Process as PTR Shots"
+        return "Process as FPTR Shots"
 
     def toolTip(self):
-        return "Process as PTR Shots generates output on a per-shot basis and logs it in PTR."
+        return "Process as FPTR Shots generates output on a per-shot basis and logs it in FPTR."
 
     def populateUI(self, *args, **kwargs):
         """
@@ -84,7 +84,7 @@ class ShotgunShotProcessorUI(
         master_layout.setContentsMargins(0, 0, 0, 0)
 
         # add group box for shotgun stuff
-        shotgun_groupbox = QtGui.QGroupBox("PTR Shot and Sequence Creation Settings")
+        shotgun_groupbox = QtGui.QGroupBox("FPTR Shot and Sequence Creation Settings")
         master_layout.addWidget(shotgun_groupbox)
         shotgun_layout = QtGui.QVBoxLayout(shotgun_groupbox)
 
@@ -198,7 +198,7 @@ class ShotgunShotProcessorUI(
             properties["sg_cut_type"] = new_value
 
         # connect the widget index changed to the callback
-        cut_type_widget.currentIndexChanged[str].connect(value_changed)
+        cut_type_widget.currentTextChanged.connect(value_changed)
 
         # ---- construct the layout with a label
 
@@ -227,7 +227,7 @@ class ShotgunShotProcessorUI(
         statuses = schema["sg_status_list"]["properties"]["valid_values"]["value"]
 
         values = [statuses, templates]
-        labels = ["PTR Shot Status", "PTR Task Template for Shots"]
+        labels = ["FPTR Shot Status", "FPTR Task Template for Shots"]
         keys = ["sg_status_hiero_tags", "task_template_map"]
 
         # build a map of tag value pairs from the properties
@@ -250,7 +250,7 @@ class ShotgunShotProcessorUI(
         tagTable.setMinimumHeight(150)
         tagTable.setHorizontalHeaderLabels(["Hiero Tags"] + labels)
         tagTable.setAlternatingRowColors(True)
-        tagTable.setSelectionMode(tagTable.NoSelection)
+        tagTable.setSelectionMode(QtGui.QAbstractItemView.SelectionMode.NoSelection)
         tagTable.setShowGrid(False)
         tagTable.verticalHeader().hide()
         tagTable.horizontalHeader().setStretchLastSection(True)
@@ -258,8 +258,8 @@ class ShotgunShotProcessorUI(
 
         # on change rebuild the properties
         def changed(index):
-            for (row, name) in enumerate(names):
-                for (col, key) in enumerate(keys):
+            for row, name in enumerate(names):
+                for col, key in enumerate(keys):
                     combo = tagTable.cellWidget(row, col + 1)
 
                     # if no tag mapped to a name
@@ -275,7 +275,7 @@ class ShotgunShotProcessorUI(
 
         # and build the table
         tagsByName = self._get_all_tags_by_name()
-        for (row, name) in enumerate(names):
+        for row, name in enumerate(names):
             tag = tagsByName.get(name, None)
             if tag is None:
                 continue
@@ -286,10 +286,10 @@ class ShotgunShotProcessorUI(
             tagTable.setItem(row, 0, item)
 
             # build combo boxes for each set of values
-            for (col, vals) in enumerate(values):
+            for col, vals in enumerate(values):
                 combo = QtGui.QComboBox()
                 combo.addItem(None)
-                for (i, value) in enumerate(vals):
+                for i, value in enumerate(vals):
                     combo.addItem(value)
                     # see if the current item is the one in the properties
                     if map[name][col] == value:
@@ -298,7 +298,9 @@ class ShotgunShotProcessorUI(
                 # adjust sizes to avoid clipping or scrolling
                 width = combo.minimumSizeHint().width()
                 combo.setMinimumWidth(width)
-                combo.setSizeAdjustPolicy(combo.AdjustToContents)
+                combo.setSizeAdjustPolicy(
+                    QtGui.QComboBox.SizeAdjustPolicy.AdjustToContents
+                )
                 tagTable.setCellWidget(row, col + 1, combo)
 
         tagTable.resizeRowsToContents()
@@ -367,7 +369,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
 
         # inject collate settings into Tasks where needed
         (collateTracks, collateShotNames) = self._getCollateProperties()
-        for (itemPath, itemPreset) in exportTemplate:
+        for itemPath, itemPreset in exportTemplate:
             if "collateTracks" in itemPreset.properties():
                 itemPreset.properties()["collateTracks"] = collateTracks
             if "collateShotNames" in itemPreset.properties():
@@ -486,6 +488,12 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # Cut order is 1-based
             shot_updater_task._cut_order = i + 1
 
+            # Ensure collated shots have their tasks and templates prepared
+            # before the export queue runs. Non-collated exports already run
+            # the updater task before any other work takes place.
+            if shot_updater_task.isCollated():
+                shot_updater_task.prepare_shot_for_export()
+
         # if you're wondering why we looped over the tasks above only to bail
         # out here if cuts support isn't available for the site, it's to
         # maintain backward compatibility for updating the Shot entities with
@@ -532,7 +540,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
 
         # ---- at this point, we have the cut related tasks in order.
 
-        self.app.engine.show_busy("Preprocessing Sequence", "Creating Cut in PTR ...")
+        self.app.engine.show_busy("Preprocessing Sequence", "Creating Cut in FPTR ...")
 
         # wrap in a try/catch to make sure we can clear the popup at the end
         try:
@@ -564,7 +572,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         parent_entity = None
 
         try:
-            # get the parent entity in PTR that corresponds to the hiero sequence
+            # get the parent entity in FPTR that corresponds to the hiero sequence
             parent_entity = self.app.execute_hook_method(
                 "hook_get_shot",
                 "get_shot_parent",
@@ -581,7 +589,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             self.app.log_warning(
                 "The method 'get_shot_parent' could not be found in the "
                 "'hook_get_shot' hook. In order to properly link the "
-                "Cut entity in PTR, you will need to implement this method "
+                "Cut entity in FPTR, you will need to implement this method "
                 "to return a Sequence, Episode, or some other entity "
                 "that corresponds to the Hiero sequence in your workflow."
             )
@@ -636,7 +644,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         used for frame exports called FrameServerRenderTask. This task type
         renders frames in an individual frame context within Nuke and therefore
         our quicktime write node never runs. Thus no quicktime upload for the
-        PTR Version and no thumbnail.
+        FPTR Version and no thumbnail.
 
         By overriding this method and forcing a value of ``False``, we trick
         the Hiero shot processor internals into thinking that there is no frame
@@ -664,7 +672,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # log a debug message in case something happens.
             self._app.log_debug(
                 "Unable to override the frame server check. If exporting individual "
-                "frames, this may prevent the upload of a quicktime to PTR."
+                "frames, this may prevent the upload of a quicktime to FPTR."
             )
 
     def _restore_frame_server_check(self):
@@ -697,7 +705,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         """
 
         # make sure the data cache is ready. this code may create entities in
-        # PTR and they'll be stored here for reuse.
+        # FPTR and they'll be stored here for reuse.
         if not hasattr(self.app, "preprocess_data"):
             self.app.preprocess_data = {}
 
@@ -722,7 +730,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         cut_item_data_list = []
 
         # process the tasks in order
-        for (shot_updater_task, transcode_task) in cut_related_tasks:
+        for shot_updater_task, transcode_task in cut_related_tasks:
 
             # cut order was populated by the calling method to update the
             # Shot entity's cut info
@@ -784,7 +792,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # dont' want to assume that there is an associated transcode task.
             # if there is, attach the cut item data so that the version is
             # updated. If not, then we'll get a cut item without an associated
-            # version (cut info only in PTR, nothing playable).
+            # version (cut info only in FPTR, nothing playable).
             if transcode_task:
                 transcode_task._cut_item_data = cut_item_data
 
@@ -834,7 +842,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
 
 
 class ShotgunShotProcessorPreset(
-    ShotgunHieroObjectBase, FnShotProcessor.ShotProcessorPreset, CollatedShotPreset
+    ShotgunHieroObjectBase, CollatedShotPreset, FnShotProcessor.ShotProcessorPreset
 ):
     """
     Handles presets for the shot processor.
@@ -872,7 +880,7 @@ class ShotgunShotProcessorPreset(
             ("Final", default_template),
         ]
 
-        # holds the cut type to use when creating Cut entires in PTR
+        # holds the cut type to use when creating Cut entires in FPTR
         default_properties["sg_cut_type"] = ""
 
         # Handle custom properties from the customize_export_ui hook.

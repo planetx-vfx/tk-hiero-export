@@ -8,21 +8,22 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import re
-import os
-import sys
 import ast
-
-from hiero.core import nuke
-from hiero.exporters import FnNukeShotExporter
-from hiero.exporters import FnNukeShotExporterUI
-from .collating_exporter import CollatedShotPreset
+import os
+import re
+import sys
+from pathlib import Path
 
 import sgtk
+from hiero.core import nuke
+from hiero.core.nuke import ReadNode
+from hiero.exporters import FnNukeShotExporter
+from hiero.exporters import FnNukeShotExporterUI
 from sgtk.platform.qt import QtGui, QtCore
 
-from .base import ShotgunHieroObjectBase
 from . import HieroGetExtraPublishData
+from .base import ShotgunHieroObjectBase
+from .collating_exporter import CollatedShotPreset
 
 
 class ShotgunNukeShotExporterUI(
@@ -34,7 +35,7 @@ class ShotgunNukeShotExporterUI(
 
     def __init__(self, preset):
         FnNukeShotExporterUI.NukeShotExporterUI.__init__(self, preset)
-        self._displayName = "PTR Nuke Project File"
+        self._displayName = "FPTR Nuke Project File"
         self._taskType = ShotgunNukeShotExporter
 
     def populateUI(self, widget, exportTemplate):
@@ -50,7 +51,7 @@ class ShotgunNukeShotExporterUI(
         properties = self._preset.properties()
 
         for node in nodes:
-            name = 'Toolkit Node: <%s> <%s> <%s>' % (node["category"], node["output"], node["data_type"])
+            name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
             item = QtGui.QStandardItem(name)
             item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             if name in properties["toolkitWriteNodes"]:
@@ -79,11 +80,11 @@ class ShotgunNukeShotExporterUI(
             form_layout = layout
 
         if form_layout:
-            form_layout.insertRow(0, "PTR Write Nodes:", self._toolkit_list)
+            form_layout.insertRow(0, "FPTR Write Nodes:", self._toolkit_list)
         else:
             self.app.log_error(
                 "Unable to find the expected UI layout to display the list of "
-                "PTR Write Nodes in the export dialog."
+                "FPTR Write Nodes in the export dialog."
             )
 
         # Handle any custom widget work the user did via the custom_export_ui
@@ -158,7 +159,12 @@ class ShotgunNukeShotExporter(
             )
 
         source = self._item.source()
-        self._thumbnail = source.thumbnail(source.posterFrame())
+        try:
+            self._thumbnail = source.thumbnail(source.posterFrame())
+        except RuntimeError:
+            # Nuke 16.0 issues a RuntimeError when trying to get the thumbnail
+            # RuntimeError: Layer does not exist
+            self.app.logger.error("Unable to extract thumbnail", exc_info=True)
 
         return FnNukeShotExporter.NukeShotExporter.taskStep(self)
 
@@ -206,6 +212,11 @@ class ShotgunNukeShotExporter(
                 tasks = self.app.shotgun.find("Task", task_filter)
                 if len(tasks) == 1:
                     args["task"] = tasks[0]
+                else:
+                    self.app.log_error(
+                        ("No" if len(tasks) == 0 else "Too many")
+                        + " tasks found for writing nuke script."
+                    )
             except ValueError:
                 # continue without task
                 self.app.log_error("Invalid value for 'default_task_filter'")
@@ -218,7 +229,7 @@ class ShotgunNukeShotExporter(
         sg_publish = sgtk.util.register_publish(**args)
         if self._extra_publish_data is not None:
             self.app.log_debug(
-                "Updating PTR %s %s"
+                "Updating FPTR %s %s"
                 % (publish_entity_type, str(self._extra_publish_data))
             )
             self.app.shotgun.update(
@@ -233,7 +244,7 @@ class ShotgunNukeShotExporter(
         )
         if extra_publish_data is not None:
             self.app.log_debug(
-                "Updating PTR %s %s" % (publish_entity_type, str(extra_publish_data))
+                "Updating FPTR %s %s" % (publish_entity_type, str(extra_publish_data))
             )
             self.app.shotgun.update(
                 sg_publish["type"], sg_publish["id"], extra_publish_data
@@ -241,6 +252,17 @@ class ShotgunNukeShotExporter(
 
         # upload thumbnail for sequence
         self._upload_thumbnail_to_sg(sg_publish, self._thumbnail)
+
+        # create filesystem structure for task
+        if args.get("task"):
+            self.app.logger.debug(
+                "Creating filesystem structure for task %s" % args.get("task")
+            )
+            self.app.sgtk.create_filesystem_structure(
+                args.get("task").get("type"),
+                args.get("task").get("id"),
+                engine=self.app.engine.instance_name,
+            )
 
         # Log usage metrics
         try:
@@ -254,8 +276,8 @@ class ShotgunNukeShotExporter(
         This method overrides the default method added to the base class in
         Nuke 10. The base class returns ``True`` for all items found in the
         list of collated items. This prevents unnecessary exports for those items
-        since non-PTR workflows only collate into the exported nuke script of the
-        first exported track item. For PTR workflows, we still export versions
+        since non-FPTR workflows only collate into the exported nuke script of the
+        first exported track item. For FPTR workflows, we still export versions
         for collated tracks and link them back to the hero shot. So we need to
         do our own culling of tasks in the shot processor. So we return ``False``
         unless the item is the current item.
@@ -281,6 +303,63 @@ class ShotgunNukeShotExporter(
         # the script by temporarily removing the viewer node and then adding it back in.
         nodeList = script.getNodes()
 
+        read_nodes = [node for node in nodeList if isinstance(node, ReadNode)]
+
+        for item in self._collatedItems if self._collate else [self._item]:
+            try:
+                file_source = item.source().mediaSource().fileinfos()[0].filename()
+            except:
+                continue
+
+            # Replace existing read nodes with exported/published paths
+            for node in read_nodes:
+                if file_source == node.knob("file"):
+                    episode_entity = self.app.execute_hook_method(
+                        "hook_get_shot",
+                        "get_episode",
+                        data=self.app.preprocess_data,
+                        hiero_sequence=item.parentSequence(),
+                    )
+
+                    plate_template = self.app.get_template("template_plate_path")
+                    offline_template = self.app.get_template("template_offline_path")
+                    fields = {
+                        "Episode": episode_entity["code"],
+                        "Sequence": item.parentSequence().name(),
+                        "Shot": item.name(),
+                        "track": item.parentTrack().name(),
+                        "version": int(self._tk_version_number),
+                    }
+                    plate_path = plate_template.apply_fields(fields)
+                    offline_path = offline_template.apply_fields(fields)
+
+                    # Skip if file path already matches template
+                    if plate_path == node.knob("file") or offline_path == node.knob(
+                        "file"
+                    ):
+                        continue
+
+                    if Path(plate_path).suffix == Path(node.knob("file")).suffix:
+                        template_name = plate_template.name
+                        file_path = plate_path
+                    else:
+                        template_name = offline_template.name
+                        file_path = offline_path
+
+                    if file_path is not None:
+                        node.setKnob(
+                            "file",
+                            file_path.replace(os.path.sep, "/"),
+                        )
+
+                        label = [
+                            f"Template: {template_name}",
+                            *[f"{key}: {value}" for key, value in fields.items()],
+                        ]
+                        node.setKnob("label", "\n".join(label))
+
+                    break
+
         currentLayoutContext = script._layoutContextStack[-1]
 
         # extract the current end Node from the script but keep hold of it so we can add it back on.
@@ -292,19 +371,16 @@ class ShotgunNukeShotExporter(
         try:
             for toolkit_specifier in self._preset.properties()["toolkitWriteNodes"]:
                 # break down a string like 'Toolkit Node: Mono Dpx ("editorial")' into name and output
-                regex = "(?<=\<)(.*?)(?=\>)"
-                match = re.findall(regex, toolkit_specifier)
-
-                dictionary = {
-                    "category": match[0],
-                    "output": match[1],
-                    "data_type": match[2],
-                }
+                match = re.match(
+                    '^Toolkit Node: (?P<name>.+) \("(?P<output>.+)"\)',
+                    toolkit_specifier,
+                )
+                metadata = match.groupdict()
 
                 shotGridWriteNode = nuke.MetadataNode(
-                    metadatavalues=list(dictionary.items())
+                    metadatavalues=list(metadata.items())
                 )
-                shotGridWriteNode.setName("ShotGridWriteNodePlaceholder")
+                shotGridWriteNode.setName("ShotgunWriteNodePlaceholder")
 
                 createTemplatePlaceholder = nuke.MetadataNode()
                 createTemplatePlaceholder.setName("createTemplatePlaceholder")
@@ -325,7 +401,7 @@ class ShotgunNukeShotExporter(
                 # now add our new node to the layout
                 currentLayoutContext.getNodes().append(shotGridWriteNode)
         except Exception:
-            self.app.logger.exception("Failed to add PTR writenodes")
+            self.app.logger.exception("Failed to add FPTR writenodes")
         finally:
             # now put back the viewer nodes layout
             currentLayoutContext.getNodes().append(oldLayoutEnd)
@@ -335,7 +411,7 @@ class ShotgunNukeShotExporter(
 
 
 class ShotgunNukeShotPreset(
-    ShotgunHieroObjectBase, FnNukeShotExporter.NukeShotPreset, CollatedShotPreset
+    ShotgunHieroObjectBase, CollatedShotPreset, FnNukeShotExporter.NukeShotPreset
 ):
     """
     Settings for the shotgun transcode step
@@ -354,7 +430,7 @@ class ShotgunNukeShotPreset(
         toolkit_write_nodes = []
         nodes = self.app.get_setting("nuke_script_toolkit_write_nodes")
         for node in nodes:
-            name = 'Toolkit Node: <%s> <%s> <%s>' % (node["category"], node["output"], node["data_type"])
+            name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
             toolkit_write_nodes.append(name)
         self.properties()["toolkitWriteNodes"] = toolkit_write_nodes
 

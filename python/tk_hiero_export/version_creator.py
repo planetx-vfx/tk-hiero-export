@@ -8,28 +8,24 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import os
 import ast
-import sys
-import shutil
-import tempfile
 import inspect
+import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 
+import hiero
+import hiero.core.nuke as nuke
+import sgtk.util
+import tank
+from hiero import core
+from hiero.core import *
 from hiero.exporters import FnExternalRender
 from hiero.exporters import FnTranscodeExporter
 from hiero.exporters import FnTranscodeExporterUI
-
-import hiero
-from hiero import core
-from hiero.core import *
-import hiero.core.nuke as nuke
-
-import tank
-import sgtk.util
 from sgtk.platform.qt import QtGui, QtCore
-
-from .base import ShotgunHieroObjectBase
-from .collating_exporter import CollatingExporter, CollatedShotPreset
 
 from . import (
     HieroGetQuicktimeSettings,
@@ -38,6 +34,8 @@ from . import (
     HieroGetExtraPublishData,
     HieroPostVersionCreation,
 )
+from .base import ShotgunHieroObjectBase
+from .collating_exporter import CollatingExporter, CollatedShotPreset
 
 
 class ShotgunTranscodeExporterUI(
@@ -51,7 +49,7 @@ class ShotgunTranscodeExporterUI(
 
     def __init__(self, preset):
         FnTranscodeExporterUI.TranscodeExporterUI.__init__(self, preset)
-        self._displayName = "PTR Transcode Images"
+        self._displayName = "FPTR Transcode Images"
         self._taskType = ShotgunTranscodeExporter
 
     def create_version_changed(self, state):
@@ -74,12 +72,12 @@ class ShotgunTranscodeExporterUI(
 
         top_layout = QtGui.QVBoxLayout()
         top_layout.setContentsMargins(9, 0, 9, 0)
-        create_version_checkbox = QtGui.QCheckBox("Create PTR Version", widget)
+        create_version_checkbox = QtGui.QCheckBox("Create FPTR Version", widget)
         create_version_checkbox.setToolTip(
-            "Create a Version in PTR for this transcode.\n\n"
+            "Create a Version in FPTR for this transcode.\n\n"
             "If the output format is not a quicktime, then\n"
             "a quicktime will be created.  The quicktime will\n"
-            "be uploaded to PTR as Screening Room media."
+            "be uploaded to FPTR as Screening Room media."
         )
 
         create_version_checkbox.setCheckState(QtCore.Qt.Checked)
@@ -119,7 +117,7 @@ class ShotgunTranscodeExporterUI(
 
 
 class ShotgunTranscodeExporter(
-    ShotgunHieroObjectBase, FnTranscodeExporter.TranscodeExporter, CollatingExporter
+    ShotgunHieroObjectBase, CollatingExporter, FnTranscodeExporter.TranscodeExporter
 ):
     """
     Create Transcode object and send to Shotgun
@@ -189,7 +187,7 @@ class ShotgunTranscodeExporter(
 
         self._quicktime_path = os.path.join(tempfile.mkdtemp(), "preview.mov")
         self._temp_quicktime = True
-        nodeName = "PTR Screening Room Media"
+        nodeName = "FPTR Screening Room Media"
 
         framerate = None
         if self._sequence:
@@ -219,7 +217,7 @@ class ShotgunTranscodeExporter(
         # their Python classes out from under us, so now we're going
         # to have to handle this the ugly way, via introspecting the
         # arguments expected by the createWriteNode method.
-        arg_spec = inspect.getargspec(FnExternalRender.createWriteNode)
+        arg_spec = inspect.getfullargspec(FnExternalRender.createWriteNode)
         if "projectsettings" in arg_spec.args:
             kwargs = dict(
                 path=self._quicktime_path,
@@ -340,7 +338,6 @@ class ShotgunTranscodeExporter(
 
             file_name = os.path.basename(self._resolved_export_path)
             file_name = os.path.splitext(file_name)[0]
-            file_name = file_name.capitalize()
 
             # use the head/tail to populate frame first/last/range fields on
             # the Version
@@ -425,7 +422,7 @@ class ShotgunTranscodeExporter(
         pub_data = tank.util.register_publish(**args)
         if self._extra_publish_data is not None:
             self.app.log_debug(
-                "Updating PTR %s %s"
+                "Updating FPTR %s %s"
                 % (published_file_entity_type, str(self._extra_publish_data))
             )
             self.app.shotgun.update(
@@ -450,7 +447,7 @@ class ShotgunTranscodeExporter(
             else:  # == "TankPublishedFile
                 self._version_data["tank_published_file"] = pub_data
 
-            self.app.log_debug("Creating PTR Version %s" % str(self._version_data))
+            self.app.log_debug("Creating FPTR Version %s" % str(self._version_data))
             vers = self.app.shotgun.create("Version", self._version_data)
 
             if os.path.exists(self._quicktime_path):
@@ -494,6 +491,61 @@ class ShotgunTranscodeExporter(
                         {"type": "CutItem", "id": cut_item_id}, self._thumbnail
                     )
 
+        # If deadline submission, update job
+        if self._submission.__class__.__name__ == "DeadlineRenderSubmission":
+            if "DEADLINE_PATH" in os.environ:
+                deadline_command = (
+                    Path(os.environ["DEADLINE_PATH"]) / "deadlinecommand.exe"
+                ).as_posix()
+
+                # TODO this updates all deadline jobs instead of the submission
+
+                # Find the matching job
+                job = next(
+                    (
+                        j
+                        for j in self._submission.jobs
+                        if j.outputPath == self._resolved_export_path
+                    ),
+                    None,
+                )
+
+                if job:
+                    process = subprocess.Popen(
+                        [
+                            deadline_command,
+                            "-SetJobExtraInfoKeyValue",
+                            job.jobId,
+                            "VersionId",
+                            str(vers.get("id", "")),
+                        ],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        shell=True,
+                    )
+                    self.app.logger.debug(process.communicate()[0].decode("utf-8"))
+                    if not job.keep_suspended:
+                        process = subprocess.Popen(
+                            [
+                                deadline_command,
+                                "-ResumeJob",
+                                job.jobId,
+                            ],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            shell=True,
+                        )
+                        self.app.logger.debug(process.communicate()[0].decode("utf-8"))
+                else:
+                    self.app.logger.error(
+                        "Can't find deadline job for %s.",
+                        os.path.basename(self._resolved_export_path),
+                    )
+            else:
+                self.app.logger.error("Can't find deadline to update job.")
+
         # Log usage metrics
         try:
             self.app.log_metric("Transcode & Publish", log_version=True)
@@ -503,9 +555,9 @@ class ShotgunTranscodeExporter(
 
 
 class ShotgunTranscodePreset(
-    ShotgunHieroObjectBase, FnTranscodeExporter.TranscodePreset, CollatedShotPreset
+    ShotgunHieroObjectBase, CollatedShotPreset, FnTranscodeExporter.TranscodePreset
 ):
-    """Settings for the PTR transcode step"""
+    """Settings for the FPTR transcode step"""
 
     def __init__(self, name, properties):
         FnTranscodeExporter.TranscodePreset.__init__(self, name, properties)
@@ -514,6 +566,9 @@ class ShotgunTranscodePreset(
 
         # set default values
         self._properties["create_version"] = True
+
+        # Update properties dictionary with data from file
+        self._properties.update(properties)
 
         # Handle custom properties from the customize_export_ui hook.
         custom_properties = (

@@ -63,3 +63,8 @@ from .sg_audio_export import (
     ShotgunAudioExporter,
     ShotgunAudioPreset,
 )
+from .sg_copy_export import (
+    ShotgunCopyExporterUI,
+    ShotgunCopyExporter,
+    ShotgunCopyPreset,
+)

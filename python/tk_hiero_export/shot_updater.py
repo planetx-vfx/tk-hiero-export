@@ -22,7 +22,7 @@ from . import (
 
 
 class ShotgunShotUpdater(
-    ShotgunHieroObjectBase, FnShotExporter.ShotTask, CollatingExporter
+    ShotgunHieroObjectBase, CollatingExporter, FnShotExporter.ShotTask
 ):
     """
     Ensures that Shots and Sequences exist in Shotgun
@@ -120,19 +120,17 @@ class ShotgunShotUpdater(
             "working_duration": working_duration,
         }
 
-    def taskStep(self):
-        """
-        Execution payload.
-        """
-        # Only process actual shots... so uncollated items and hero collated items
-        if self.isCollated() and not self.isHero():
-            return False
+    def finishTask(self):
+        FnShotExporter.ShotTask.finishTask(self)
+        CollatingExporter.finishTask(self)
 
-        # execute base class
-        FnShotExporter.ShotTask.taskStep(self)
+    def prepare_shot_for_export(self):
+        """Ensure the Flow Production Tracking shot data is ready before export."""
+        self._update_shot_entity(prequeue=True)
 
-        # call the preprocess hook to get extra values
-        if self.app.shot_count == 0:
+    def _build_shotgun_entity_data(self, prequeue=False):
+        """Return the data required to update the Flow Production Tracking Shot."""
+        if not hasattr(self.app, "preprocess_data"):
             self.app.preprocess_data = {}
 
         sg_shot = self.app.execute_hook(
@@ -166,24 +164,32 @@ class ShotgunShotUpdater(
         cut_out = cut_info["cut_item_out"]
         cut_duration = cut_info["cut_item_duration"]
         working_duration = cut_info["working_duration"]
+        edit_duration = cut_info["edit_duration"]
 
-        self.app.log_debug("Head/Tail from Hiero: %s, %s" % (head_in, tail_out))
+        if not prequeue:
+            self.app.log_debug("Head/Tail from Hiero: %s, %s" % (head_in, tail_out))
+
+            if cut_duration != edit_duration:
+                self.app.log_warning(
+                    "It looks like the shot %s has a retime applied. FPTR cuts do "
+                    "not support retimes." % (self.clipName(),)
+                )
+
+        if not self._has_nuke_backend() and self.isCollated():
+            head_in -= self.HEAD_ROOM_OFFSET
+            tail_out -= self.HEAD_ROOM_OFFSET
 
         if self.isCollated():
-
             if self.is_cut_length_export():
-                # nothing to do here. the default calculation above is enough.
-                self.app.log_debug("Exporting... collated, cut length.")
-
-                # Log cut length collate metric
-                try:
-                    self.app.log_metric("Collate/Cut Length", log_version=True)
-                except:
-                    # ingore any errors. ex: metrics logging not supported
-                    pass
-
+                if not prequeue:
+                    self.app.log_debug("Exporting... collated, cut length.")
+                    try:
+                        self.app.log_metric("Collate/Cut Length", log_version=True)
+                    except:
+                        pass
             else:
-                self.app.log_debug("Exporting... collated, clip length.")
+                if not prequeue:
+                    self.app.log_debug("Exporting... collated, clip length.")
 
                 # NOTE: Hiero crashes when trying to collate with a
                 # custom start frame. so this will only work for source start
@@ -218,19 +224,21 @@ class ShotgunShotUpdater(
                 cut_duration = cut_out - cut_in + 1
 
                 # Log clip length collate metric
-                try:
-                    self.app.log_metric("Collate/Clip Length", log_version=True)
-                except:
-                    # ingore any errors. ex: metrics logging not supported
-                    pass
+                if not prequeue:
+                    try:
+                        self.app.log_metric("Collate/Clip Length", log_version=True)
+                    except:
+                        # ingore any errors. ex: metrics logging not supported
+                        pass
 
         else:
-            # regular export. values we have are good. just log it
-            if self.is_cut_length_export():
-                self.app.log_debug("Exporting... cut length.")
-            else:
-                # the cut in/out should already be correct here. just log
-                self.app.log_debug("Exporting... clip length.")
+            if not prequeue:
+                # regular export. values we have are good. just log it
+                if self.is_cut_length_export():
+                    self.app.log_debug("Exporting... cut length.")
+                else:
+                    # the cut in/out should already be correct here. just log
+                    self.app.log_debug("Exporting... clip length.")
 
         # update the frame range
         sg_shot["sg_head_in"] = head_in
@@ -279,6 +287,13 @@ class ShotgunShotUpdater(
         if template is not None:
             sg_shot["task_template"] = template
 
+        return shot_type, shot_id, sg_shot
+
+    def _update_shot_entity(self, prequeue=False):
+        """Update the Flow Production Tracking shot, optionally skipping side effects."""
+
+        shot_type, shot_id, sg_shot = self._build_shotgun_entity_data(prequeue=prequeue)
+
         # commit the changes and update the thumbnail
         self.app.execute_hook_method(
             "hook_update_shot",
@@ -289,6 +304,9 @@ class ShotgunShotUpdater(
             preset_properties=self._preset.properties(),
             base_class=HieroUpdateShot,
         )
+
+        if prequeue:
+            return shot_type, shot_id
 
         # create the directory structure
         self.app.execute_hook_method(
@@ -305,6 +323,35 @@ class ShotgunShotUpdater(
 
         # keep shot count
         self.app.shot_count += 1
+
+        return shot_type, shot_id
+
+    def taskStep(self):
+        """
+        Execution payload.
+        """
+
+        self.app.log_debug(
+            "Running shot updater for task %s; isCollated %s, isHero %s, skipping %s"
+            % (
+                self._item,
+                self.isCollated(),
+                self.isHero(),
+                self.isCollated() and not self.isHero(),
+            )
+        )
+
+        # Only process actual shots... so uncollated items and hero collated items
+        if self.isCollated() and not self.isHero():
+            return False
+
+        # execute base class
+        FnShotExporter.ShotTask.taskStep(self)
+
+        if self.app.shot_count == 0:
+            self.app.preprocess_data = {}
+
+        self._update_shot_entity()
 
         # create the CutItem with the data populated by the shot processor
         cut = None
