@@ -22,7 +22,7 @@ from . import (
 
 
 class ShotgunShotUpdater(
-    ShotgunHieroObjectBase, FnShotExporter.ShotTask, CollatingExporter
+    ShotgunHieroObjectBase, CollatingExporter, FnShotExporter.ShotTask
 ):
     """
     Ensures that Shots and Sequences exist in Shotgun
@@ -95,7 +95,7 @@ class ShotgunShotUpdater(
 
         if cut_duration != edit_duration:
             self.app.log_warning(
-                "It looks like the shot %s has a retime applied. FPTR cuts do "
+                "It looks like the shot %s has a retime applied. PTR cuts do "
                 "not support retimes." % (self.clipName(),)
             )
 
